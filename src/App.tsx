@@ -629,7 +629,7 @@ export default function App() {
             <div className="p-4 md:p-10 shrink-0 border-b border-white/5 md:border-none flex justify-center">
               <div 
                 className="relative aspect-video bg-zinc-900 border border-white/5 shadow-2xl flex items-center justify-center group mb-0 md:mb-8 w-full mx-auto"
-                style={{ maxHeight: '60vh', maxWidth: 'calc(60vh * 16 / 9)' }}
+                style={{ maxHeight: '40vh', maxWidth: 'calc(40vh * 16 / 9)' }}
               >
                   {currentFilm.vimeo_url ? (
                      <iframe 
