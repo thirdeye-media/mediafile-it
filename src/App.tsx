@@ -815,75 +815,73 @@ export default function App() {
               "flex-1 overflow-y-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8",
               mobileTab === 'chat' && "hidden lg:block" // Hide metadata on mobile if chat is active
             )}>
-              <div className="flex flex-col-reverse md:flex-row md:items-start justify-between mb-6 md:mb-4 pl-0 gap-4 md:gap-4">
-
-                 <div className="flex-1 min-w-0">
-                   <h2 className="text-2xl font-serif leading-tight mb-2 pb-[5px] flex items-start sm:items-center gap-2">
-                     <button 
-                        onClick={() => handleMention(t.title)}
-                        className="text-white/30 hover:text-white transition-colors shrink-0 mt-1 sm:mt-0"
-                        title={`Mention ${t.title} in chat`}
-                      >
-                         <AtSign className="w-5 h-5" />
-                     </button>
-                     <span className="text-[18px] md:text-[22px] lg:text-[24px]">{currentFilm.title}</span>
-                   </h2>
-                   <div className="flex flex-wrap gap-x-6 gap-y-2 text-[9px] uppercase tracking-widest font-mono text-white/40">
-                     <span className="flex items-center gap-1">
-                        <button 
-                           onClick={() => handleMention(t.date)}
-                           className="text-white/40 hover:text-white transition-colors flex items-center gap-1"
-                           title={`Mention ${t.date} in chat`}
-                        >
-                           <AtSign className="w-3 h-3" />
-                           <span>{t.date}</span>
-                        </button>
-                        <span>: <span className="text-white/60">{currentFilm.date || t.not_available}</span></span>
-                     </span>
-                     <span className="flex items-center gap-1">
-                        <button 
-                           onClick={() => handleMention(t.place)}
-                           className="text-white/40 hover:text-white transition-colors flex items-center gap-1"
-                           title={`Mention ${t.place} in chat`}
-                        >
-                           <AtSign className="w-3 h-3" />
-                           <span>{t.place}</span>
-                        </button>
-                        <span>: <span className="text-white/60">{currentFilm.place || t.not_available}</span></span>
-                     </span>
-                     <span className="flex items-center gap-1">
-                        <button 
-                           onClick={() => handleMention(t.author)}
-                           className="text-white/40 hover:text-white transition-colors flex items-center gap-1"
-                           title={`Mention ${t.author} in chat`}
-                        >
-                           <AtSign className="w-3 h-3" />
-                           <span>{t.author}</span>
-                        </button>
-                        <span>: <span className="text-white/60">{currentFilm.author || t.not_available}</span></span>
-                     </span>
-                   </div>
+              <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-2">
+                 <span className="text-[10px] uppercase tracking-widest text-white/40 font-mono">
+                   {currentIndex + 1} / {filteredFilms.length}
+                 </span>
+                 <div className="flex gap-2">
+                   <button
+                      onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
+                      disabled={currentIndex === 0}
+                      className="text-white/40 hover:text-white disabled:opacity-30 transition-colors"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => setCurrentIndex(Math.min(filteredFilms.length - 1, currentIndex + 1))}
+                      disabled={currentIndex === filteredFilms.length - 1}
+                      className="text-white/40 hover:text-white disabled:opacity-30 transition-colors"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
                  </div>
-                 <div className="flex items-center justify-end w-full md:w-auto gap-3 shrink-0 pt-1 md:pt-0">
-                   <span className="text-[10px] uppercase tracking-widest text-white/30 font-mono">
-                     {currentIndex + 1}/{filteredFilms.length}
+              </div>
+
+              <div className="mb-6">
+                 <h2 className="font-serif leading-tight mb-2 flex items-start sm:items-center gap-2">
+                   <button 
+                      onClick={() => handleMention(t.title)}
+                      className="text-white/30 hover:text-white transition-colors shrink-0 mt-1 sm:mt-0"
+                      title={`Mention ${t.title} in chat`}
+                    >
+                       <AtSign className="w-4 h-4 md:w-5 md:h-5" />
+                   </button>
+                   <span className="text-xl md:text-3xl text-white/90">{currentFilm.title}</span>
+                 </h2>
+                 <div className="flex flex-wrap gap-x-5 gap-y-1 text-[9px] uppercase tracking-widest font-mono text-white/40">
+                   <span className="flex items-center gap-1">
+                      <button 
+                         onClick={() => handleMention(t.date)}
+                         className="text-white/40 hover:text-white transition-colors flex items-center gap-1"
+                         title={`Mention ${t.date} in chat`}
+                      >
+                         <AtSign className="w-3 h-3" />
+                         <span>{t.date}</span>
+                      </button>
+                      <span>: <span className="text-white/60">{currentFilm.date || t.not_available}</span></span>
                    </span>
-                   <div className="flex gap-1">
-                     <button
-                        onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
-                        disabled={currentIndex === 0}
-                        className="text-white/40 hover:text-white disabled:opacity-30 transition-colors"
+                   <span className="flex items-center gap-1">
+                      <button 
+                         onClick={() => handleMention(t.place)}
+                         className="text-white/40 hover:text-white transition-colors flex items-center gap-1"
+                         title={`Mention ${t.place} in chat`}
                       >
-                        <ChevronLeft className="w-5 h-5" />
+                         <AtSign className="w-3 h-3" />
+                         <span>{t.place}</span>
                       </button>
-                      <button
-                        onClick={() => setCurrentIndex(Math.min(filteredFilms.length - 1, currentIndex + 1))}
-                        disabled={currentIndex === filteredFilms.length - 1}
-                        className="text-white/40 hover:text-white disabled:opacity-30 transition-colors"
+                      <span>: <span className="text-white/60">{currentFilm.place || t.not_available}</span></span>
+                   </span>
+                   <span className="flex items-center gap-1">
+                      <button 
+                         onClick={() => handleMention(t.author)}
+                         className="text-white/40 hover:text-white transition-colors flex items-center gap-1"
+                         title={`Mention ${t.author} in chat`}
                       >
-                        <ChevronRight className="w-5 h-5" />
+                         <AtSign className="w-3 h-3" />
+                         <span>{t.author}</span>
                       </button>
-                   </div>
+                      <span>: <span className="text-white/60">{currentFilm.author || t.not_available}</span></span>
+                   </span>
                  </div>
               </div>
 
@@ -1223,7 +1221,7 @@ function MetadataField({
              value={content}
              onChange={(e) => onChange(e.target.value)}
              placeholder={placeholder}
-             minRows={2}
+             minRows={5}
              className={cn(
               "w-full bg-transparent text-[13px] leading-relaxed resize-none focus:outline-none transition-colors text-white",
               isMissing && "italic text-zinc-500"

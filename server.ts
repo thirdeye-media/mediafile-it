@@ -1,11 +1,11 @@
 import express from "express";
+import fs from "fs";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import * as dotenv from 'dotenv';
-import fs from 'fs';
 dotenv.config();
 
 const app = express();
@@ -39,7 +39,6 @@ const getPerplexityModel = () => getConfigValue('PERPLEXITY_MODEL', false, proce
 
 async function performWebSearch(query: string): Promise<string> {
     const providers = getSearchPriority();
-
     let searchResult = "No search API configured. Please set TAVILY_API_KEY, PERPLEXITY_API_KEY, or BRAVE_API_KEY in .env. Falling back to Wikipedia.";
 
     for (const provider of providers) {
@@ -81,7 +80,6 @@ async function performWebSearch(query: string): Promise<string> {
         }
     }
 
-    // Fallback to Wikipedia if no API keys worked or are configured
     try {
         console.log("Falling back to Wikipedia search for:", query);
         const lang = query.match(/[áéíóú¿¡ñ]/i) ? "es" : "en"; // Simple heuristic
@@ -99,7 +97,6 @@ async function performWebSearch(query: string): Promise<string> {
             }));
             return "From Wikipedia:\n" + summaries.join('\n\n');
         }
-        
     } catch(e) {
         console.error("Wikipedia fallback failed", e);
     }
@@ -107,27 +104,27 @@ async function performWebSearch(query: string): Promise<string> {
     return searchResult;
 }
 
-// Initialize Clients
-
+// Routes
 app.get("/api/guidelines", (req, res) => {
   try {
     const guidelines = fs.readFileSync(path.join(process.cwd(), 'ANNOTATION_GUIDELINES.md'), 'utf-8');
-    res.send(guidelines);
+    return res.send(guidelines);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
 app.get("/api/placeholders", (req, res) => {
   try {
     const placeholders = fs.readFileSync(path.join(process.cwd(), 'PLACEHOLDERS.md'), 'utf-8');
-    res.send(placeholders);
+    return res.send(placeholders);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
 app.get("/api/films", async (req, res) => {
+  console.log("HIT API FILMS");
   try {
     let sheetId = "1p_VQI3HhaNQj9BiLpzvuH4WRgIxrxbDsUWnnRmKlktM"; // Default fallback
     try {
@@ -136,15 +133,13 @@ app.get("/api/films", async (req, res) => {
       if (match && match[1]) {
         sheetId = match[1];
       }
-    } catch(e) {
-      console.warn("Could not read SPREADSHEET_CONFIGURATION.md, using default ID");
-    }
+    } catch(e) {}
 
     const response = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`);
     const csvText = await response.text();
-    res.send(csvText);
+    return res.send(csvText);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -217,10 +212,10 @@ CRITICAL INSTRUCTION: There are currently ${userTurns} user turns. If the user h
       return res.status(500).json({ error: "All AI providers failed or were not configured properly. " + (lastError?.message || "") });
     }
 
-    res.json({ report: reportContent });
+    return res.json({ report: reportContent });
   } catch (error: any) {
     console.error("LLM API Error:", error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 });
 
@@ -289,7 +284,7 @@ app.post("/api/chat", async (req, res) => {
                 },
                 {
                   type: "function" as const,
-                  function: { name: "searchWeb", description: "Search the internet for currently up-to-date information to answer annotator's questions about films, directors, history, or context.", parameters: { type: "object", properties: { query: { type: "string" } } } }
+                  function: { name: "searchWeb", description: "Search the internet for currently up-to-date information.", parameters: { type: "object", properties: { query: { type: "string" } } } }
                 }
               ];
 
@@ -337,7 +332,6 @@ app.post("/api/chat", async (req, res) => {
                  });
                  const nextChoice = nextResponse.choices[0];
                  replyText = nextChoice.message.content || "";
-                 // Process any further updates in the second pass
                  if (nextChoice.message.tool_calls) {
                      for (const call of nextChoice.message.tool_calls as any[]) {
                          if (call.function.name === "updateMetadata") { try { functionCalls = JSON.parse(call.function.arguments); } catch(e) {} }
@@ -510,11 +504,11 @@ app.post("/api/chat", async (req, res) => {
        functionCalls = cleanCalls;
     }
 
-    res.json({ text: replyText, functionCalls, moveToNext });
+    return res.json({ text: replyText, functionCalls, moveToNext });
 
   } catch (error: any) {
     console.error("LLM API Error:", error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 });
 
@@ -524,12 +518,20 @@ async function startServer() {
       server: { middlewareMode: true },
       appType: "spa",
     });
+
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    
+    // Explicitly handle all other routes with index.html for SPA fallback
+    app.get('*all', (req, res) => {
+      try {
+        const html = fs.readFileSync(path.join(process.cwd(), 'dist/index.html'), 'utf-8');
+        res.send(html);
+      } catch (e) {
+        res.status(404).send('Not Found');
+      }
     });
   }
 
@@ -539,3 +541,4 @@ async function startServer() {
 }
 
 startServer();
+
