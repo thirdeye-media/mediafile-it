@@ -3,11 +3,15 @@ import Papa from "papaparse";
 import JSZip from "jszip";
 import { Film, Message } from "./types";
 import { v4 as uuidv4 } from "uuid";
-import { Send, ChevronLeft, ChevronRight, Play, MessageSquare, Menu, Globe, Upload, FileText, AtSign, MonitorSmartphone, X, Download, Archive, User, ChevronDown, MoreHorizontal, Save, Check } from "lucide-react";
+import { Send, ChevronLeft, ChevronRight, Play, MessageSquare, Menu, Globe, Upload, FileText, AtSign, MonitorSmartphone, X, Download, Archive, User, ChevronDown, ChevronUp, MoreHorizontal, Save, Check } from "lucide-react";
 import { cn } from "./lib/utils";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import TextareaAutosize from 'react-textarea-autosize';
 
 const TRANSLATIONS = {
   en: {
+    title: "Title",
     not_available: "Not Available",
     queue: "Film Queue",
     studio: "Annotation Studio",
@@ -59,6 +63,7 @@ const TRANSLATIONS = {
     unapproved: "Ready for Review"
   },
   es: {
+    title: "Título",
     not_available: "No Disponible",
     queue: "Cola de Películas",
     studio: "Estudio de Anotación",
@@ -763,7 +768,7 @@ export default function App() {
             "w-full flex flex-col border-b lg:border-b-0 lg:border-r border-white/10 shrink-0 lg:shrink lg:flex-1 min-h-0",
             mobileTab === 'metadata' ? "flex-1 overflow-hidden" : "shrink-0"
           )}>
-            <div className="p-4 md:p-10 shrink-0 border-b border-white/5 lg:border-none flex justify-center">
+            <div className="pt-[20px] px-[20px] pb-[10px] md:pt-[30px] md:px-[30px] md:pb-[15px] shrink-0 border-b border-white/5 lg:border-none flex justify-center">
               <div 
                 className="relative aspect-video bg-zinc-900 border border-white/5 shadow-2xl flex items-center justify-center group mb-0 md:mb-8 w-full mx-auto"
                 style={{ maxHeight: '40vh', maxWidth: 'calc(40vh * 16 / 9)' }}
@@ -807,40 +812,82 @@ export default function App() {
             </div>
 
             <div className={cn(
-              "flex-1 overflow-y-auto px-6 md:px-10 pt-[16px] pb-[40px]",
+              "flex-1 overflow-y-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8",
               mobileTab === 'chat' && "hidden lg:block" // Hide metadata on mobile if chat is active
             )}>
-              <div className="flex items-start justify-between mb-8 pl-0">
+              <div className="flex flex-col-reverse md:flex-row md:items-start justify-between mb-6 md:mb-4 pl-0 gap-4 md:gap-4">
 
-                 <div>
-                   <label className="text-[9px] uppercase tracking-widest text-white/30 block mb-2 font-mono">
-                     {t.active_entry} {currentIndex + 1}/{filteredFilms.length} // {currentFilm.date || t.not_available}
-                   </label>
-                   <h2 className="text-2xl font-serif leading-tight mb-3">{currentFilm.title}</h2>
-                   <div className="flex gap-4 text-[9px] uppercase tracking-widest font-mono text-white/40">
-                     <span className="inline-block w-[120px]">{t.author}: <span className="text-white/60">{currentFilm.author || t.not_available}</span></span>
-                     <span>{t.place}: <span className="text-white/60">{currentFilm.place || t.not_available}</span></span>
+                 <div className="flex-1 min-w-0">
+                   <h2 className="text-2xl font-serif leading-tight mb-2 pb-[5px] flex items-start sm:items-center gap-2">
+                     <button 
+                        onClick={() => handleMention(t.title)}
+                        className="text-white/30 hover:text-white transition-colors shrink-0 mt-1 sm:mt-0"
+                        title={`Mention ${t.title} in chat`}
+                      >
+                         <AtSign className="w-5 h-5" />
+                     </button>
+                     <span className="text-[18px] md:text-[22px] lg:text-[24px]">{currentFilm.title}</span>
+                   </h2>
+                   <div className="flex flex-wrap gap-x-6 gap-y-2 text-[9px] uppercase tracking-widest font-mono text-white/40">
+                     <span className="flex items-center gap-1">
+                        <button 
+                           onClick={() => handleMention(t.date)}
+                           className="text-white/40 hover:text-white transition-colors flex items-center gap-1"
+                           title={`Mention ${t.date} in chat`}
+                        >
+                           <AtSign className="w-3 h-3" />
+                           <span>{t.date}</span>
+                        </button>
+                        <span>: <span className="text-white/60">{currentFilm.date || t.not_available}</span></span>
+                     </span>
+                     <span className="flex items-center gap-1">
+                        <button 
+                           onClick={() => handleMention(t.place)}
+                           className="text-white/40 hover:text-white transition-colors flex items-center gap-1"
+                           title={`Mention ${t.place} in chat`}
+                        >
+                           <AtSign className="w-3 h-3" />
+                           <span>{t.place}</span>
+                        </button>
+                        <span>: <span className="text-white/60">{currentFilm.place || t.not_available}</span></span>
+                     </span>
+                     <span className="flex items-center gap-1">
+                        <button 
+                           onClick={() => handleMention(t.author)}
+                           className="text-white/40 hover:text-white transition-colors flex items-center gap-1"
+                           title={`Mention ${t.author} in chat`}
+                        >
+                           <AtSign className="w-3 h-3" />
+                           <span>{t.author}</span>
+                        </button>
+                        <span>: <span className="text-white/60">{currentFilm.author || t.not_available}</span></span>
+                     </span>
                    </div>
                  </div>
-                 <div className="flex gap-2 shrink-0">
-                   <button
-                      onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
-                      disabled={currentIndex === 0}
-                      className="text-white/40 hover:text-white disabled:opacity-30 transition-colors"
-                    >
-                      <ChevronLeft className="w-6 h-6" />
-                    </button>
-                    <button
-                      onClick={() => setCurrentIndex(Math.min(filteredFilms.length - 1, currentIndex + 1))}
-                      disabled={currentIndex === filteredFilms.length - 1}
-                      className="text-white/40 hover:text-white disabled:opacity-30 transition-colors"
-                    >
-                      <ChevronRight className="w-6 h-6" />
-                    </button>
+                 <div className="flex items-center justify-end w-full md:w-auto gap-3 shrink-0 pt-1 md:pt-0">
+                   <span className="text-[10px] uppercase tracking-widest text-white/30 font-mono">
+                     {currentIndex + 1}/{filteredFilms.length}
+                   </span>
+                   <div className="flex gap-1">
+                     <button
+                        onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
+                        disabled={currentIndex === 0}
+                        className="text-white/40 hover:text-white disabled:opacity-30 transition-colors"
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => setCurrentIndex(Math.min(filteredFilms.length - 1, currentIndex + 1))}
+                        disabled={currentIndex === filteredFilms.length - 1}
+                        className="text-white/40 hover:text-white disabled:opacity-30 transition-colors"
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                   </div>
                  </div>
               </div>
 
-              <div className="mt-8 space-y-6">
+              <div className="mt-4 space-y-4">
                 <MetadataField 
                   title={t.description} 
                   content={currentFilm.description || ""} 
@@ -898,19 +945,21 @@ export default function App() {
                 />
                 
                 <div className="group">
-                  <label className="text-[10px] uppercase tracking-widest text-white/30 block font-mono mb-2 flex justify-between items-end">
-                    <span className="flex items-center">
-                      {t.tags}
-                      <button 
-                        onClick={() => handleMention(t.tags)}
-                        className="ml-2 text-white/20 hover:text-white transition-colors flex items-center justify-center p-1 rounded-sm"
-                        title={`Mention ${t.tags} in chat`}
-                      >
-                         <AtSign className="w-3 h-3" />
-                      </button>
+                  <label className="text-[10px] uppercase tracking-widest text-white/30 font-mono mb-2 flex flex-wrap justify-between items-end gap-x-2 gap-y-1">
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="flex items-center gap-1">
+                        <button 
+                          onClick={() => handleMention(t.tags)}
+                          className="text-white/60 hover:text-white transition-colors flex items-center gap-1 rounded-sm uppercase tracking-widest font-mono"
+                          title={`Mention ${t.tags} in chat`}
+                        >
+                           <AtSign className="w-3.5 h-3.5" />
+                           <span>{t.tags}</span>
+                        </button>
+                      </span>
                       <button 
                         onClick={() => handleUpdateCurrentFilm({ tags_approved: currentFilm.tags_approved === 'true' ? 'false' : 'true' })}
-                        className={cn("ml-3 px-2 py-0.5 rounded-sm transition-colors border hidden md:flex items-center gap-1 text-[10px] uppercase tracking-widest font-mono", currentFilm.tags_approved === 'true' ? "border-emerald-500 bg-emerald-500/10 text-emerald-500" : "border-white/20 text-white/50 hover:text-white hover:border-white/40 hover:bg-white/5")}
+                        className={cn("px-2 py-0.5 rounded-sm transition-colors border hidden md:flex items-center gap-1 text-[10px] uppercase tracking-widest font-mono", currentFilm.tags_approved === 'true' ? "border-emerald-500 bg-emerald-500/10 text-emerald-500" : "border-white/20 text-white/50 hover:text-white hover:border-white/40 hover:bg-white/5")}
                       >
                         <Check className="w-3 h-3" />
                         {currentFilm.tags_approved === 'true' ? t.approved : t.approve_optional}
@@ -937,13 +986,13 @@ export default function App() {
                     onChange={(e) => handleUpdateCurrentFilm({ tags: e.target.value })}
                     placeholder={placeholders[`tags_${lang}`] || placeholders['tags'] || t.type_observation}
                     className={cn(
-                      "w-full bg-transparent border-b pb-3 text-sm focus:outline-none transition-colors font-mono",
-                      currentFilm.tags_approved === 'true' ? "border-emerald-500/30 text-emerald-100/90" : "border-white/10 focus:border-white/40 text-white/90 placeholder:text-white/20"
+                      "w-full bg-transparent border-b pb-2 text-[13px] focus:outline-none transition-colors font-mono text-white placeholder:text-white/20",
+                      currentFilm.tags_approved === 'true' ? "border-white/30" : "border-white/10 focus:border-white/40"
                      )}
                   />
                   <div className="flex flex-wrap gap-2 mt-3">
                     {currentFilm.tags ? currentFilm.tags.split(',').map(t => t.trim()).filter(Boolean).map((tag, i) => (
-                      <span key={i} className={cn("border px-2 py-1 text-[10px] uppercase tracking-wider font-mono", currentFilm.tags_approved === 'true' ? "border-emerald-500/20 text-emerald-300 bg-emerald-500/5" : "border-white/20 text-white/80 bg-white/5")}>
+                      <span key={i} className={cn("border px-2 py-1 text-[10px] uppercase tracking-wider font-mono", currentFilm.tags_approved === 'true' ? "border-white/30 text-white bg-white/10" : "border-white/20 text-white/80 bg-white/5")}>
                         {tag}
                       </span>
                     )) : <span className="text-[10px] uppercase tracking-widest text-white/20 italic font-mono">{t.no_tags}</span>}
@@ -984,25 +1033,19 @@ export default function App() {
             )}
             style={{ width: window.innerWidth >= 1024 ? (chatSidebarOpen ? chatWidth : 0) : undefined }}
           >
-            <div className={cn("p-2 lg:p-6 border-b border-white/5 flex items-center justify-between shadow-2xl z-10 shrink-0", !chatSidebarOpen && "opacity-0")}>
-              <div className="flex items-center gap-3 min-w-max">
-                <MessageSquare className="w-4 h-4 text-emerald-500/70" />
-                <span className="text-[10px] uppercase tracking-widest text-emerald-500/70 font-bold whitespace-nowrap">{t.ai_assistant}</span>
-              </div>
-              <button 
-                className="hidden lg:block text-white/40 hover:text-white transition-colors shrink-0"
-                onClick={() => setChatSidebarOpen(false)}
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
+            <button 
+              className={cn("absolute right-4 top-4 z-20 hidden lg:block text-white/40 hover:text-white transition-colors bg-[#121212] p-1 rounded-sm shadow-xl", !chatSidebarOpen && "hidden")}
+              onClick={() => setChatSidebarOpen(false)}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
 
-            <div className="flex-1 p-4 md:p-6 space-y-6 md:space-y-8 overflow-y-auto">
+            <div className="flex-1 p-4 md:p-6 md:pt-10 space-y-6 md:space-y-8 overflow-y-auto relative">
               {messages.map((m) => {
                 const isUser = m.role === 'user';
                 return (
                   <div key={m.id} className={cn("flex flex-col space-y-2", isUser ? "items-end" : "items-start")}>
-                    <span className="text-[9px] uppercase tracking-widest text-white/20 font-bold">
+                    <span className={cn("text-[9px] uppercase tracking-widest font-bold", isUser ? "text-white/20" : "text-emerald-500/70")}>
                       {isUser ? t.annotator : t.ai_assistant}
                     </span>
                     <div className={cn(
@@ -1011,14 +1054,52 @@ export default function App() {
                         ? "bg-white text-black rounded-sm shadow-sm" 
                         : "bg-zinc-800/50 border-l-2 border-white rounded-sm text-white"
                     )}>
-                      {m.content}
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          a: ({node, ...props}) => <a {...props} className="text-blue-400 hover:text-blue-300 underline underline-offset-2 break-all" target="_blank" rel="noopener noreferrer" />,
+                          p: ({node, ...props}) => <p {...props} className="mb-2 last:mb-0" />,
+                          pre: ({node, children, ...props}: any) => {
+                            const codeElement = Array.isArray(children) ? children[0] : children;
+                            const content = codeElement?.props?.children || '';
+                            return (
+                              <div className="relative mt-2 mb-4 group pre-wrapper">
+                                <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={() => navigator.clipboard.writeText(String(content).replace(/\n$/, ''))}
+                                    className="bg-zinc-700 hover:bg-zinc-600 px-2 py-1 rounded text-xs text-white/90 shadow-sm flex items-center gap-1 transition-colors"
+                                  >
+                                    Copy
+                                  </button>
+                                </div>
+                                <pre className="bg-black/60 p-4 rounded whitespace-pre-wrap break-words text-[13px] font-mono border border-white/10 text-white/90" {...props}>
+                                  {children}
+                                </pre>
+                              </div>
+                            );
+                          },
+                          code: ({className, children, node, ...props}: any) => {
+                            const isBlock = /language-(\w+)/.exec(className || '') || String(children).includes('\n');
+                            if (isBlock) {
+                              return <code className={className} {...props}>{children}</code>;
+                            }
+                            return (
+                              <code className="bg-white/10 px-1 py-0.5 rounded text-[13px] font-mono text-emerald-400" {...props}>
+                                {children}
+                              </code>
+                            )
+                          }
+                        }}
+                      >
+                        {m.content}
+                      </ReactMarkdown>
                     </div>
                   </div>
                 )
               })}
               {loading && (
                 <div className="flex flex-col space-y-2 items-start">
-                    <span className="text-[9px] uppercase tracking-widest text-white/20 font-bold">{t.ai_assistant}</span>
+                    <span className="text-[9px] uppercase tracking-widest text-emerald-500/70 font-bold">{t.ai_assistant}</span>
                     <div className="bg-zinc-800/50 border-l-2 border-white p-3 md:p-4 rounded-sm flex items-center gap-2">
                       <span className="w-1.5 h-1.5 bg-white/60 animate-bounce" style={{ animationDelay: '0ms' }} />
                       <span className="w-1.5 h-1.5 bg-white/60 animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -1083,68 +1164,73 @@ function MetadataField({
   const requirementMet = optional ? true : (minWords ? wordCount >= minWords : hasText);
   const isMissing = !hasText;
   
+  const [isExpanded, setIsExpanded] = useState(!approved || !requirementMet);
+
   return (
-    <div className="group">
-      <label className="text-[10px] uppercase tracking-widest text-white/30 block font-mono mb-2 flex justify-between items-end">
-        <span className="flex items-center">
-          {title}
+    <div className="group bg-zinc-900/30 border border-white/5 rounded-md overflow-hidden transition-all duration-300">
+      <div 
+         className="px-3 py-3 md:px-4 md:py-3 flex flex-wrap justify-between items-center gap-x-4 gap-y-2 cursor-pointer hover:bg-white/5 transition-colors select-none"
+         onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <div className="text-[10px] uppercase tracking-widest text-white/30 font-mono flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="flex items-center gap-1">
+            {isExpanded ? <ChevronUp className="w-3.5 h-3.5 opacity-60" /> : <ChevronDown className="w-3.5 h-3.5 opacity-60" />}
+            {onMention ? (
+               <button 
+                  onClick={(e) => { e.stopPropagation(); onMention(); }}
+                  className="text-white hover:text-white transition-colors flex items-center gap-1 rounded-sm uppercase tracking-widest font-mono"
+                  title={`Mention ${title} in chat`}
+               >
+                  <AtSign className="w-3.5 h-3.5" />
+                  <span>{title}</span>
+               </button>
+            ) : (
+                <span>{title}</span>
+            )}
+          </span>
           {minWords && !optional && (
-            <span className={cn("ml-2 text-[9px]", wordCount >= minWords ? "text-emerald-500/50" : "text-amber-500/50")}>
+            <span className={cn("text-[9px]", wordCount >= minWords ? "text-emerald-500/50" : "text-amber-500/50")}>
               ({wordCount}/{minWords} words)
             </span>
           )}
-          {onMention && (
-             <button 
-                onClick={onMention}
-                className="ml-2 text-white/20 hover:text-white transition-colors flex items-center justify-center p-1 rounded-sm"
-                title={`Mention ${title} in chat`}
-             >
-                <AtSign className="w-3 h-3" />
-             </button>
-          )}
           {requirementMet && (
             <button 
-              onClick={onToggleApprove}
-              className={cn("ml-3 px-2 py-0.5 rounded-sm transition-colors border hidden md:flex items-center gap-1 text-[10px] uppercase tracking-widest font-mono", approved ? "border-emerald-500 bg-emerald-500/10 text-emerald-500" : "border-white/20 text-white/50 hover:text-white hover:border-white/40 hover:bg-white/5")}
+              onClick={(e) => { e.stopPropagation(); onToggleApprove(); }}
+              className={cn("px-2 py-0.5 rounded-sm transition-colors border flex items-center gap-1 text-[10px] uppercase tracking-widest font-mono", approved ? "border-emerald-500 bg-emerald-500/10 text-emerald-500" : "border-white/20 text-white/50 hover:text-white hover:border-white/40 hover:bg-white/5")}
             >
               <Check className="w-3 h-3" />
               {approved ? strings.approved : (optional ? strings.approve_optional : strings.approve)}
             </button>
           )}
-        </span>
-        {isMissing ? (
-            <span className="text-amber-500/80">{strings.pending}</span>
-        ) : !requirementMet ? (
-            <span className="text-amber-500/80">{minWords ? `${strings.drafting} (< ${minWords} words)` : strings.drafting}</span>
-        ) : approved ? (
-            <span className="text-emerald-500/80">● {strings.approved}</span>
-        ) : (
-            <span className="text-blue-500/80">● {strings.unapproved}</span>
-        )}
-      </label>
+        </div>
+        
+        <div className="text-[10px] uppercase tracking-widest font-mono shrink-0">
+            {isMissing ? (
+                <span className="text-amber-500/80">{strings.pending}</span>
+            ) : !requirementMet ? (
+                <span className="text-amber-500/80">{minWords ? `${strings.drafting} (< ${minWords} words)` : strings.drafting}</span>
+            ) : approved ? (
+                <span className="text-emerald-500/80">● {strings.approved}</span>
+            ) : (
+                <span className="text-blue-500/80">● {strings.unapproved}</span>
+            )}
+        </div>
+      </div>
       
-      {requirementMet && (
-         <button 
-          onClick={onToggleApprove}
-          className={cn("w-full md:hidden mb-2 text-left px-3 py-2 rounded-sm transition-colors border flex items-center gap-2 text-[10px] uppercase tracking-widest font-mono", approved ? "border-emerald-500 bg-emerald-500/10 text-emerald-500" : "border-white/20 text-white/50 hover:text-white hover:border-white/40 hover:bg-white/5")}
-        >
-          <Check className="w-4 h-4" />
-          {approved ? strings.approved : (optional ? strings.approve_optional : strings.approve)}
-        </button>
+      {isExpanded && (
+        <div className="px-3 pb-3 md:px-4 md:pb-4 pt-1 border-t border-white/5">
+          <TextareaAutosize 
+             value={content}
+             onChange={(e) => onChange(e.target.value)}
+             placeholder={placeholder}
+             minRows={2}
+             className={cn(
+              "w-full bg-transparent text-[13px] leading-relaxed resize-none focus:outline-none transition-colors text-white",
+              isMissing && "italic text-zinc-500"
+             )}
+          />
+        </div>
       )}
-
-      <textarea 
-         value={content}
-         onChange={(e) => onChange(e.target.value)}
-         placeholder={placeholder}
-         rows={isMissing ? 2 : Math.max(3, content.split('\n').length)}
-         className={cn(
-          "w-full bg-transparent border-b pb-3 text-sm/relaxed resize-none focus:outline-none transition-colors",
-          approved ? "border-white/30 text-emerald-100/90" : "border-white/30 focus:border-white/50 text-white/90",
-          !requirementMet && !isMissing && "border-amber-500/30 focus:border-amber-500/50",
-          isMissing && "italic text-zinc-500"
-         )}
-      />
     </div>
   );
 }

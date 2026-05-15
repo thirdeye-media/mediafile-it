@@ -13,31 +13,101 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// Initialize Clients
-const getAiPriority = () => {
-  let priority = ["openrouter", "gemini", "anthropic", "mistral"];
+// DRY Helper function to read configuration from AI_CONFIGURATION.md
+function getConfigValue(key: string, parseAsArray = false, envFallback?: string) {
+  let value = envFallback;
   try {
     const configText = fs.readFileSync(path.join(process.cwd(), 'AI_CONFIGURATION.md'), 'utf-8');
-    const match = configText.match(/\*\*PRIORITY:\*\*\s*(.+)/);
+    const regex = new RegExp(`\\*\\*${key}:\\*\\*\\s*\`?([^\`\n]+)\`?`);
+    const match = configText.match(regex);
     if (match && match[1]) {
-       priority = match[1].replace(/`/g, '').split(",").map(s => s.trim().toLowerCase());
+      value = match[1].replace(/`/g, '').trim();
     }
   } catch(e) {}
-  return priority;
-};
-
-// Helper function to read primary model configuration
-function getPrimaryModel() {
-  let model = process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini"; // Default fallback
-  try {
-    const configText = fs.readFileSync(path.join(process.cwd(), 'AI_CONFIGURATION.md'), 'utf-8');
-    const match = configText.match(/\*\*MODEL:\*\*\s*`([a-zA-Z0-9-_.\/]+)`/);
-    if (match && match[1]) {
-      model = match[1];
-    }
-  } catch(e) {}
-  return model;
+  
+  if (value && parseAsArray) {
+    return value.split(",").map(s => s.trim().toLowerCase());
+  }
+  return value;
 }
+
+// Configuration Accessors
+const getAiPriority = () => getConfigValue('PRIORITY', true, "openrouter,gemini,anthropic,mistral") as string[];
+const getSearchPriority = () => getConfigValue('SEARCH_PRIORITY', true, "tavily,perplexity,brave") as string[];
+const getPrimaryModel = () => getConfigValue('MODEL', false, process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini") as string;
+const getPerplexityModel = () => getConfigValue('PERPLEXITY_MODEL', false, process.env.PERPLEXITY_MODEL || "llama-3.1-sonar-large-128k-online") as string;
+
+async function performWebSearch(query: string): Promise<string> {
+    const providers = getSearchPriority();
+
+    let searchResult = "No search API configured. Please set TAVILY_API_KEY, PERPLEXITY_API_KEY, or BRAVE_API_KEY in .env. Falling back to Wikipedia.";
+
+    for (const provider of providers) {
+        if (provider.includes("tavily") && process.env.TAVILY_API_KEY) {
+             try {
+                 const res = await fetch("https://api.tavily.com/search", {
+                     method: "POST", headers: { "Content-Type": "application/json" },
+                     body: JSON.stringify({ api_key: process.env.TAVILY_API_KEY, query, include_answer: true, max_results: 5 })
+                 });
+                 const data = await res.json();
+                 if (data.answer || data.results?.length > 0) return data.answer || JSON.stringify(data.results?.map((r:any) => ({title: r.title, content: r.content})));
+             } catch(e:any) {
+                 console.error("Tavily search failed", e);
+             }
+        }
+        else if (provider.includes("perplexity") && process.env.PERPLEXITY_API_KEY) {
+             try {
+                 const openai = new OpenAI({ baseURL: "https://api.perplexity.ai", apiKey: process.env.PERPLEXITY_API_KEY });
+                 const model = getPerplexityModel();
+                 const response = await openai.chat.completions.create({
+                     model: model,
+                     messages: [{ role: "system", content: "You are a web search assistant. Provide a highly detailed and concise factual summary of the search query based on current online information, focusing on historical and cultural context if relevant." }, { role: "user", content: query }]
+                 });
+                 if (response.choices && response.choices.length > 0) return response.choices[0].message.content || "No results";
+             } catch (e: any) {
+                 console.error("Perplexity search failed", e);
+             }
+        }
+        else if (provider.includes("brave") && process.env.BRAVE_API_KEY) {
+             try {
+                 const res = await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}`, {
+                     headers: { "Accept": "application/json", "X-Subscription-Token": process.env.BRAVE_API_KEY }
+                 });
+                 const data = await res.json();
+                 if (data.web?.results?.length > 0) return JSON.stringify(data.web?.results?.map((r:any) => ({title: r.title, description: r.description}))?.slice(0, 5));
+             } catch(e:any) {
+                 console.error("Brave search failed", e);
+             }
+        }
+    }
+
+    // Fallback to Wikipedia if no API keys worked or are configured
+    try {
+        console.log("Falling back to Wikipedia search for:", query);
+        const lang = query.match(/[áéíóú¿¡ñ]/i) ? "es" : "en"; // Simple heuristic
+        const url = `https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&utf8=&format=json&srlimit=3`;
+        const res = await fetch(url);
+        const data = await res.json();
+        
+        if (data.query?.search?.length > 0) {
+            const summaries = await Promise.all(data.query.search.map(async (r: any) => {
+                const detailUrl = `https://${lang}.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=&explaintext=&titles=${encodeURIComponent(r.title)}&format=json`;
+                const details = await fetch(detailUrl).then(response => response.json());
+                const pages = details.query.pages;
+                const extract = Object.values(pages)[0] as any;
+                return `Title: ${r.title}\nSummary: ${extract?.extract || r.snippet.replace(/<[^>]+>/g, '')}`;
+            }));
+            return "From Wikipedia:\n" + summaries.join('\n\n');
+        }
+        
+    } catch(e) {
+        console.error("Wikipedia fallback failed", e);
+    }
+    
+    return searchResult;
+}
+
+// Initialize Clients
 
 app.get("/api/guidelines", (req, res) => {
   try {
@@ -179,7 +249,7 @@ app.post("/api/chat", async (req, res) => {
       .replace(/\{\{LANGUAGE\}\}/g, language === 'es' ? 'SPANISH' : 'ENGLISH')
       .replace(/\{\{USAGE_INSTRUCTIONS\}\}/g, usageInstructions)
       .replace(/\{\{ANNOTATION_GUIDELINES\}\}/g, annotationGuidelines)
-      .replace(/\{\{FILM_DATA\}\}/g, filmDataString);
+      .replace(/\{\{FILM_DATA\}\}/g, filmDataString) + "\n\nIf you use the searchWeb tool and it returns a message saying 'No search API configured', you MUST inform the user that they need to configure their TAVILY_API_KEY, PERPLEXITY_API_KEY, or BRAVE_API_KEY in the app's settings.";
 
     let functionCalls = null;
     let moveToNext = false;
@@ -216,6 +286,10 @@ app.post("/api/chat", async (req, res) => {
                 {
                   type: "function" as const,
                   function: { name: "moveToNextFilm", description: "Suggests to move to the next film", parameters: { type: "object", properties: {} } }
+                },
+                {
+                  type: "function" as const,
+                  function: { name: "searchWeb", description: "Search the internet for currently up-to-date information to answer annotator's questions about films, directors, history, or context.", parameters: { type: "object", properties: { query: { type: "string" } } } }
                 }
               ];
 
@@ -227,39 +301,116 @@ app.post("/api/chat", async (req, res) => {
               });
 
               const choice = response.choices[0];
+              let requiresSecondPass = false;
+              const toolOutputs = [];
+
               if (choice.message.tool_calls) {
-                for (const call of choice.message.tool_calls) {
-                  if (call.function.name === "updateMetadata") { try { functionCalls = JSON.parse(call.function.arguments); } catch(e) {} }
-                  if (call.function.name === "moveToNextFilm") moveToNext = true;
+                for (const call of choice.message.tool_calls as any[]) {
+                  if (call.function.name === "updateMetadata") { 
+                      try { functionCalls = JSON.parse(call.function.arguments); } catch(e) {} 
+                      toolOutputs.push({ role: "tool", tool_call_id: call.id, name: call.function.name, content: "Metadata updated." });
+                  }
+                  if (call.function.name === "moveToNextFilm") {
+                      moveToNext = true;
+                      toolOutputs.push({ role: "tool", tool_call_id: call.id, name: call.function.name, content: "Moved to next film." });
+                  }
+                  if (call.function.name === "searchWeb") {
+                      const { query } = JSON.parse(call.function.arguments);
+                      const searchResults = await performWebSearch(query);
+                      toolOutputs.push({ role: "tool", tool_call_id: call.id, name: call.function.name, content: searchResults });
+                      requiresSecondPass = true;
+                  }
                 }
               }
-              replyText = choice.message.content || "";
+              
+              if (requiresSecondPass) {
+                 const nextMessages: any[] = [
+                    ...orMessages,
+                    choice.message,
+                    ...toolOutputs
+                 ];
+                 const nextResponse = await client.chat.completions.create({
+                    model: modelId,
+                    messages: nextMessages,
+                    tools: tools,
+                    tool_choice: "auto"
+                 });
+                 const nextChoice = nextResponse.choices[0];
+                 replyText = nextChoice.message.content || "";
+                 // Process any further updates in the second pass
+                 if (nextChoice.message.tool_calls) {
+                     for (const call of nextChoice.message.tool_calls as any[]) {
+                         if (call.function.name === "updateMetadata") { try { functionCalls = JSON.parse(call.function.arguments); } catch(e) {} }
+                         if (call.function.name === "moveToNextFilm") moveToNext = true;
+                     }
+                 }
+              } else {
+                 replyText = choice.message.content || "";
+              }
               success = true;
           } 
           else if (provider === "gemini" && process.env.GEMINI_API_KEY) {
               const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
               const formattedHistory = messages.slice(0, -1).map((m: any) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }));
+              const toolsObj = [
+                {
+                  // @ts-ignore
+                  functionDeclarations: [
+                    { name: "updateMetadata", description: "Updates metadata", parameters: { type: Type.OBJECT, properties: { description: { type: Type.STRING }, historic_context: { type: Type.STRING }, aesthetic_critical_commentary: { type: Type.STRING }, production_commentary: { type: Type.STRING }, tags: { type: Type.STRING }, annotator_comments_optional: { type: Type.STRING } } } },
+                    { name: "moveToNextFilm", description: "Suggests to move to next film", parameters: { type: Type.OBJECT, properties: {} } },
+                    { name: "searchWeb", description: "Search the internet for up-to-date information", parameters: { type: Type.OBJECT, properties: { query: { type: Type.STRING } } } }
+                  ]
+                }
+              ];
+              const contents = [...formattedHistory, { role: "user", parts: [{ text: lastMessage.content }] }];
               const response = await ai.models.generateContent({
-                  model: "gemini-2.5-flash",
-                  contents: [...formattedHistory, { role: "user", parts: [{ text: lastMessage.content }] }],
+                  model: "gemini-3-flash-preview",
+                  contents: contents,
                   config: {
                     systemInstruction,
-                    tools: [{
-                      // @ts-ignore
-                      functionDeclarations: [
-                        { name: "updateMetadata", description: "Updates metadata", parameters: { type: Type.OBJECT, properties: { description: { type: Type.STRING }, historic_context: { type: Type.STRING }, aesthetic_critical_commentary: { type: Type.STRING }, production_commentary: { type: Type.STRING }, tags: { type: Type.STRING }, annotator_comments_optional: { type: Type.STRING } } } },
-                        { name: "moveToNextFilm", description: "Suggests to move to next film", parameters: { type: Type.OBJECT, properties: {} } }
-                      ]
-                    }]
+                    tools: toolsObj,
                   }
               });
+
+              let requiresSecondPass = false;
+              const functionResponses: any[] = [];
+
               if (response.functionCalls && response.functionCalls.length > 0) {
                  for (const call of response.functionCalls) {
-                     if (call.name === "updateMetadata") functionCalls = call.args;
-                     if (call.name === "moveToNextFilm") moveToNext = true;
+                     if (call.name === "updateMetadata") {
+                         functionCalls = call.args;
+                         functionResponses.push({ functionResponse: { name: call.name, response: { result: "Metadata updated" } } });
+                     }
+                     if (call.name === "moveToNextFilm") {
+                         moveToNext = true;
+                         functionResponses.push({ functionResponse: { name: call.name, response: { result: "Moved to next film" } } });
+                     }
+                     if (call.name === "searchWeb") {
+                         const searchResults = await performWebSearch((call.args as any).query as string);
+                         requiresSecondPass = true;
+                         functionResponses.push({ functionResponse: { name: call.name, response: { result: searchResults } } });
+                     }
                  }
               }
-              replyText = response.text || "";
+              
+              if (requiresSecondPass) {
+                  contents.push({ role: "model", parts: response.functionCalls!.map(c => ({ functionCall: { name: c.name, args: c.args } })) });
+                  contents.push({ role: "user", parts: functionResponses });
+                  const nextResponse = await ai.models.generateContent({
+                      model: "gemini-3-flash-preview",
+                      contents: contents,
+                      config: { systemInstruction, tools: toolsObj }
+                  });
+                  replyText = nextResponse.text || "";
+                  if (nextResponse.functionCalls && nextResponse.functionCalls.length > 0) {
+                      for (const call of nextResponse.functionCalls) {
+                          if (call.name === "updateMetadata") functionCalls = call.args;
+                          if (call.name === "moveToNextFilm") moveToNext = true;
+                      }
+                  }
+              } else {
+                  replyText = response.text || "";
+              }
               success = true;
           }
           else if (provider === "anthropic" && process.env.ANTHROPIC_API_KEY) {
@@ -267,25 +418,70 @@ app.post("/api/chat", async (req, res) => {
               const formattedMessages:any = messages.slice(0, -1).map((m: any) => ({ role: m.role as "user"|"assistant", content: m.content }));
               formattedMessages.push({ role: "user", content: lastMessage.content });
 
+              const tools = [
+                { name: "updateMetadata", description: "Updates metadata", input_schema: { type: "object" as const, properties: { description: { type: "string" }, historic_context: { type: "string" }, aesthetic_critical_commentary: { type: "string" }, production_commentary: { type: "string" }, tags: { type: "string" }, annotator_comments_optional: { type: "string" } } } },
+                { name: "moveToNextFilm", description: "Suggests to move to next film", input_schema: { type: "object" as const, properties: {} } },
+                { name: "searchWeb", description: "Search the internet for up-to-date information", input_schema: { type: "object" as const, properties: { query: { type: "string" } } } }
+              ];
               const response = await anthropic.messages.create({
                   model: "claude-3-5-sonnet-20241022",
                   system: systemInstruction,
                   max_tokens: 1024,
                   messages: formattedMessages,
-                  tools: [
-                    { name: "updateMetadata", description: "Updates metadata", input_schema: { type: "object" as const, properties: { description: { type: "string" }, historic_context: { type: "string" }, aesthetic_critical_commentary: { type: "string" }, production_commentary: { type: "string" }, tags: { type: "string" }, annotator_comments_optional: { type: "string" } } } },
-                    { name: "moveToNextFilm", description: "Suggests to move to next film", input_schema: { type: "object" as const, properties: {} } }
-                  ]
+                  tools: tools
               });
 
+              let requiresSecondPass = false;
+              const toolResultBlocks: any[] = [];
               for (const block of response.content) {
                   // @ts-ignore
                   if (block.type === "text") replyText += block.text;
                   if (block.type === "tool_use") {
                       // @ts-ignore
-                      if (block.name === "updateMetadata") functionCalls = block.input;
+                      if (block.name === "updateMetadata") {
+                          // @ts-ignore
+                          functionCalls = block.input;
+                          // @ts-ignore
+                          toolResultBlocks.push({ type: "tool_result", tool_use_id: block.id, content: "Metadata updated." });
+                      }
                       // @ts-ignore
-                      if (block.name === "moveToNextFilm") moveToNext = true;
+                      if (block.name === "moveToNextFilm") {
+                          moveToNext = true;
+                          // @ts-ignore
+                          toolResultBlocks.push({ type: "tool_result", tool_use_id: block.id, content: "Moved to next film." });
+                      }
+                      // @ts-ignore
+                      if (block.name === "searchWeb") {
+                          requiresSecondPass = true;
+                          // @ts-ignore
+                          const query = block.input.query;
+                          const searchResults = await performWebSearch(query);
+                          // @ts-ignore
+                          toolResultBlocks.push({ type: "tool_result", tool_use_id: block.id, content: searchResults });
+                      }
+                  }
+              }
+              
+              if (requiresSecondPass) {
+                  formattedMessages.push({ role: "assistant", content: response.content });
+                  formattedMessages.push({ role: "user", content: toolResultBlocks });
+                  const nextResponse = await anthropic.messages.create({
+                      model: "claude-3-5-sonnet-20241022",
+                      system: systemInstruction,
+                      max_tokens: 1024,
+                      messages: formattedMessages,
+                      tools: tools
+                  });
+                  replyText = ""; // clear earlier text
+                  for (const block of nextResponse.content) {
+                      // @ts-ignore
+                      if (block.type === "text") replyText += block.text;
+                      if (block.type === "tool_use") {
+                          // @ts-ignore
+                          if (block.name === "updateMetadata") functionCalls = block.input;
+                          // @ts-ignore
+                          if (block.name === "moveToNextFilm") moveToNext = true;
+                      }
                   }
               }
               success = true;

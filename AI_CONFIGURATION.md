@@ -12,9 +12,21 @@ You can change the order above to prioritize different AI providers. The system 
 
 **MODEL:** `openai/gpt-4o-mini`
 
-You can change the model above to any supported OpenRouter model string (e.g., `anthropic/claude-3-haiku`, `meta-llama/llama-3-8b-instruct`). Note that this specific setting mostly affects OpenRouter requests, whereas Anthropic, Mistral, and Gemini currently use their standard fast models (`claude-3-haiku-20240307`, `mistral-large-latest`, `gemini-2.5-flash`).
+You can change the model above to any supported OpenRouter model string (e.g., `anthropic/claude-3-haiku`, `meta-llama/llama-3-8b-instruct`). Note that this specific setting mostly affects OpenRouter requests, whereas Anthropic, Mistral, and Gemini currently use their standard fast models (`claude-3-haiku-20240307`, `mistral-large-latest`, `gemini-3-flash-preview`).
 
-**IMPORTANT: Keep the `**MODEL:** \`[YOUR_MODEL]\`` and `**PRIORITY:** \`[YOUR_PRIORITY]\`` format exactly as it is, as the application parses this file to extract it.**
+## Search Provider Priority
+
+**SEARCH_PRIORITY:** `tavily, perplexity, brave`
+
+You can change the order above to prioritize different web search providers for the AI agent to use.
+
+## Perplexity Search Model
+
+**PERPLEXITY_MODEL:** `llama-3.1-sonar-large-128k-online`
+
+If you are using Perplexity as a search provider, you can specify the model string here.
+
+**IMPORTANT: Keep the `**MODEL:** \`[YOUR_MODEL]\``, `**PRIORITY:** \`[YOUR_PRIORITY]\``, `**SEARCH_PRIORITY:** \`[YOUR_PRIORITY]\``, and `**PERPLEXITY_MODEL:** \`[YOUR_MODEL]\`` formats exactly as they are, as the application parses this file to extract them.**
 
 ## ⚠️ API Keys (Security Warning)
 
