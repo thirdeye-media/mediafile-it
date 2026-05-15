@@ -21,10 +21,15 @@ The right side of the screen is the **Annotation Studio**.
 * **The Approval Process:** You will notice that every field starts as **"Needs Approval"** (or an unapproved state). While the AI can draft text, **the AI CANNOT approve it**.
 * **The Value of Approval:** Approval acts as your signature. It tells the system "I have reviewed this text, it is accurate, and it meets the guidelines." A film is considered complete only once all assigned fields are both filled *and* manually clicked "Approve" by you.
 
-## 4. Saving Progress & Backups (Crucial!)
+## 4. Saving Progress, Backups, and Merging CSVs (Crucial!)
 **Your work is saved locally in your browser's local cache.** 
 * **Risk of Data Loss:** If you clear your browser cache, use "Incognito/Private" mode, or switch to a different browser/computer, **you will not see your previous work**.
-* **Restoring Data:** If you switch computers or lose your cache, use the **Upload** button in the sidebar (or top nav) to upload your latest `CineFile_it_Export.csv` file. This will restore the app exactly to where you left off.
+* **Restoring Data & Merging:** If you switch computers or lose your cache, use the **Upload** button to upload a `.csv` file. 
+* **Upload Resolution Rules:** 
+  1. The app will never erase or overwrite your existing local work. 
+  2. If you upload a CSV, the app compares its contents to your local cache.
+  3. If your local cache already has edits for a field, the local edits are always preserved over the CSV data.
+  4. If your local cache is empty for a field, the app will fill it with the incoming data from the uploaded CSV.
 
 ## 5. Exporting the Final Deliverable
 Your ultimate goal is to reach 100% completion in your Goal Progress bar.

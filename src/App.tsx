@@ -3,7 +3,7 @@ import Papa from "papaparse";
 import JSZip from "jszip";
 import { Film, Message } from "./types";
 import { v4 as uuidv4 } from "uuid";
-import { Send, ChevronLeft, ChevronRight, Play, MessageSquare, Menu, Globe, Upload, FileText, AtSign, MonitorSmartphone, X, Download } from "lucide-react";
+import { Send, ChevronLeft, ChevronRight, Play, MessageSquare, Menu, Globe, Upload, FileText, AtSign, MonitorSmartphone, X, Download, Archive, User, ChevronDown, MoreHorizontal, Save, Check } from "lucide-react";
 import { cn } from "./lib/utils";
 
 const TRANSLATIONS = {
@@ -15,6 +15,8 @@ const TRANSLATIONS = {
     sync: "Download CSV",
     upload_csv: "Upload CSV",
     export_report: "Export Deliverable",
+    save_cache: "Save & Backup",
+    saved: "Saved!",
     desktop_recommended: "Desktop Recommended",
     desktop_warning: "This tool uses a split-screen workspace with video playback, an AI co-pilot, and metadata forms. It is tightly optimized for desktop and laptop screens.",
     continue_anyway: "Continue anyway",
@@ -27,7 +29,8 @@ const TRANSLATIONS = {
     type_observation: "Type your observation...",
     connected: "Connected to Data API",
     skip: "Skip Film",
-    pending: "Pending Input...",
+    pending: "Needs Input",
+    drafting: "Drafting",
     recorded: "Recorded",
     waiting: "Waiting for description...",
     language_toggle: "ES",
@@ -49,11 +52,11 @@ const TRANSLATIONS = {
     approve_optional: "Approve (Optional)",
     approved: "Approved",
     not_started: "Not Started",
-    in_progress: "In Progress",
+    in_progress: "Drafting",
     ready_for_review: "Ready for Review",
     almost_there: "Almost There",
     done: "Done",
-    unapproved: "Needs Approval"
+    unapproved: "Ready for Review"
   },
   es: {
     not_available: "No Disponible",
@@ -63,6 +66,8 @@ const TRANSLATIONS = {
     sync: "Descargar CSV",
     upload_csv: "Subir CSV",
     export_report: "Exportar Entregable",
+    save_cache: "Guardar",
+    saved: "¡Guardado!",
     desktop_recommended: "Uso Recomendado en PC",
     desktop_warning: "Esta herramienta utiliza un espacio de trabajo de pantalla dividida que no está optimizado para dispositivos móviles. Se recomienda usar en computadora.",
     continue_anyway: "Continuar de todos modos",
@@ -75,7 +80,8 @@ const TRANSLATIONS = {
     type_observation: "Escribe tu observación...",
     connected: "Conectado a la API",
     skip: "Saltar Película",
-    pending: "Pendiente...",
+    pending: "Falta Información",
+    drafting: "Borrador",
     recorded: "Guardado",
     waiting: "Esperando descripción...",
     language_toggle: "EN",
@@ -97,11 +103,11 @@ const TRANSLATIONS = {
     approve_optional: "Aprobar (Opcional)",
     approved: "Aprobado",
     not_started: "No Iniciado",
-    in_progress: "En Progreso",
+    in_progress: "Borrador",
     ready_for_review: "Listo para Revisión",
     almost_there: "Casi Listo",
     done: "Completado",
-    unapproved: "Requiere Aprobación"
+    unapproved: "Listo para Revisión"
   }
 };
 
@@ -111,12 +117,14 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 768);
+  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024);
   const [lang, setLang] = useState<'en' | 'es'>('es');
   const [reportLoading, setReportLoading] = useState(false);
+  const [showSavedFeedback, setShowSavedFeedback] = useState(false);
   const [assigneeFilter, setAssigneeFilter] = useState('');
   const [mobileTab, setMobileTab] = useState<'metadata' | 'chat'>('metadata');
   const [chatSidebarOpen, setChatSidebarOpen] = useState(true);
+  const [actionMenuOpen, setActionMenuOpen] = useState(false);
   const [chatWidth, setChatWidth] = useState(400); // pixels
   const [isDraggingChat, setIsDraggingChat] = useState(false);
   const isDraggingChatRef = useRef(false);
@@ -353,31 +361,75 @@ export default function App() {
         const validFilms = parsed.filter(f => f.slug);
         
         if (validFilms.length > 0) {
-          setFilms(validFilms);
+          const savedStr = localStorage.getItem('annotator_edits');
+          const existingEdits: Record<string, Partial<Film>> = savedStr ? JSON.parse(savedStr) : {};
+          const newEditsToSave: Record<string, Partial<Film>> = { ...existingEdits };
           
-          const editsToSave: Record<string, Partial<Film>> = {};
-          validFilms.forEach(f => {
-            editsToSave[f.slug] = {
-              description: f.description,
-              historic_context: f.historic_context,
-              aesthetic_critical_commentary: f.aesthetic_critical_commentary,
-              production_commentary: f.production_commentary,
-              tags: f.tags,
-              description_approved: f.description_approved,
-              historic_context_approved: f.historic_context_approved,
-              aesthetic_critical_commentary_approved: f.aesthetic_critical_commentary_approved,
-              production_commentary_approved: f.production_commentary_approved,
-              tags_approved: f.tags_approved,
-              annotator_comments_optional: f.annotator_comments_optional,
-              annotator_comments_optional_approved: f.annotator_comments_optional_approved
-            };
+          const editableFields = [
+            'description', 'historic_context', 'aesthetic_critical_commentary', 
+            'production_commentary', 'tags', 'annotator_comments_optional',
+            'description_approved', 'historic_context_approved', 
+            'aesthetic_critical_commentary_approved', 'production_commentary_approved', 
+            'tags_approved', 'annotator_comments_optional_approved'
+          ] as const;
+
+          const mergedFilms = validFilms.map(f => {
+            const currentEdit = existingEdits[f.slug] || {};
+            const finalEdit: Partial<Film> = { ...currentEdit };
+            const mergedFilm = { ...f };
+            
+            editableFields.forEach(field => {
+              if (currentEdit[field as keyof Film]) {
+                // Preserve existing local edits
+                (mergedFilm as any)[field] = currentEdit[field as keyof Film];
+              } else if (f[field as keyof Film]) {
+                // Adopt incoming CSV edit if local is empty
+                (finalEdit as any)[field] = f[field as keyof Film];
+              }
+            });
+            
+            if (Object.keys(finalEdit).length > 0) {
+              newEditsToSave[f.slug] = finalEdit;
+            }
+            return mergedFilm;
           });
-          localStorage.setItem('annotator_edits', JSON.stringify(editsToSave));
+
+          setFilms(mergedFilms);
+          localStorage.setItem('annotator_edits', JSON.stringify(newEditsToSave));
           
           if(e.target) e.target.value = ''; // Reset input
         }
       }
     });
+  };
+
+  const handleManualSave = () => {
+    if (films.length === 0) return;
+    
+    // The auto-save already writes to localStorage, but we'll run it explicitly here just in case.
+    const editsToSave: Record<string, Partial<Film>> = {};
+    films.forEach(f => {
+      editsToSave[f.slug] = {
+        description: f.description,
+        historic_context: f.historic_context,
+        aesthetic_critical_commentary: f.aesthetic_critical_commentary,
+        production_commentary: f.production_commentary,
+        tags: f.tags,
+        description_approved: f.description_approved,
+        historic_context_approved: f.historic_context_approved,
+        aesthetic_critical_commentary_approved: f.aesthetic_critical_commentary_approved,
+        production_commentary_approved: f.production_commentary_approved,
+        tags_approved: f.tags_approved,
+        annotator_comments_optional: f.annotator_comments_optional,
+        annotator_comments_optional_approved: f.annotator_comments_optional_approved
+      };
+    });
+    localStorage.setItem('annotator_edits', JSON.stringify(editsToSave));
+
+    setShowSavedFeedback(true);
+    setTimeout(() => {
+      setShowSavedFeedback(false);
+    }, 2000);
   };
 
   const exportDeliverables = async () => {
@@ -448,8 +500,11 @@ export default function App() {
   }
 
   const completedCount = filteredFilms.filter(f => {
-    const approvedFields = [f.description_approved, f.historic_context_approved, f.aesthetic_critical_commentary_approved, f.production_commentary_approved, f.tags_approved, f.annotator_comments_optional_approved];
-    return approvedFields.filter(val => val === 'true').length === 6;
+    const requiredFields = [f.description, f.historic_context, f.aesthetic_critical_commentary];
+    const requiredApprovedFields = [f.description_approved, f.historic_context_approved, f.aesthetic_critical_commentary_approved];
+    const filled = requiredFields.filter(val => val && val.trim().split(/\s+/).filter(Boolean).length >= 20).length;
+    const approvedCount = requiredApprovedFields.filter(val => val === 'true').length;
+    return filled === 3 && approvedCount === 3;
   }).length;
 
   return (
@@ -469,36 +524,36 @@ export default function App() {
         
         <div className="overflow-y-auto w-[240px] md:w-[220px] flex-1 p-2 space-y-1">
           {filteredFilms.map((film, index) => {
-            const fields = [film.description, film.historic_context, film.aesthetic_critical_commentary, film.production_commentary, film.tags, film.annotator_comments_optional];
-            const approvedFields = [film.description_approved, film.historic_context_approved, film.aesthetic_critical_commentary_approved, film.production_commentary_approved, film.tags_approved, film.annotator_comments_optional_approved];
-            const filled = fields.filter(f => f && f.trim().length > 0).length;
-            const approvedCount = approvedFields.filter(f => f === 'true').length;
+            const requiredFields = [film.description, film.historic_context, film.aesthetic_critical_commentary];
+            const requiredApprovedFields = [film.description_approved, film.historic_context_approved, film.aesthetic_critical_commentary_approved];
+            const filled = requiredFields.filter(f => f && f.trim().split(/\s+/).filter(Boolean).length >= 20).length;
+            const approvedCount = requiredApprovedFields.filter(f => f === 'true').length;
             
-            const progress = (filled / fields.length) * 100;
+            const progress = (filled / requiredFields.length) * 100;
 
             let bgColor = 'bg-amber-600';
             let textColor = 'text-amber-500';
             let statusText = t.not_started;
             let barWidth = progress || 2; // Keep a sliver if empty
 
-            if (filled === 0) {
-              bgColor = 'bg-amber-600';
-              textColor = 'text-amber-500';
-              statusText = t.not_started;
-            } else if (filled > 0 && filled < 6) {
-              bgColor = 'bg-yellow-500';
-              textColor = 'text-yellow-500';
-              statusText = t.in_progress;
-            } else if (filled === 6 && approvedCount < 6) {
+            if (filled === 3 && approvedCount === 3) {
+              bgColor = 'bg-emerald-500';
+              textColor = 'text-emerald-400';
+              statusText = t.approved;
+              barWidth = 100;
+            } else if (filled === 3 && approvedCount < 3) {
               bgColor = 'bg-blue-500';
               textColor = 'text-blue-400';
               statusText = t.ready_for_review;
               barWidth = 100;
-            } else if (approvedCount === 6) {
-              bgColor = 'bg-emerald-500';
-              textColor = 'text-emerald-400';
-              statusText = t.done;
-              barWidth = 100;
+            } else if (filled > 0 && filled < 3) {
+              bgColor = 'bg-yellow-500';
+              textColor = 'text-yellow-500';
+              statusText = t.in_progress;
+            } else {
+              bgColor = 'bg-amber-600';
+              textColor = 'text-amber-500';
+              statusText = t.not_started;
             }
             
             return (
@@ -535,7 +590,7 @@ export default function App() {
       <div className="w-full md:w-auto shrink-0 md:shrink md:flex-1 min-w-0 flex flex-col bg-[#0F0F0F] transition-transform duration-300">
         
         {/* Top Navbar */}
-        <header className="flex justify-between items-center px-2 md:px-6 lg:px-10 py-3 md:py-5 lg:py-6 border-b border-white/10 flex-shrink-0 flex-nowrap gap-2 overflow-x-auto">
+        <header className="relative z-50 flex justify-between items-center px-2 md:px-6 lg:px-10 py-3 md:py-5 lg:py-6 border-b border-white/10 flex-shrink-0 flex-nowrap gap-2">
           <div className="flex flex-col shrink-0">
             <div className="flex items-center gap-1 md:gap-3">
               {!sidebarOpen && (
@@ -547,27 +602,37 @@ export default function App() {
             </div>
           </div>
           <div className="flex flex-nowrap items-center gap-2 md:gap-6 shrink-0 justify-end border-l border-white/10 pl-2 md:pl-0 md:border-none">
-            <div className="flex flex-col items-end justify-center shrink-0">
-               <select 
-                  value={assigneeFilter}
-                  onChange={(e) => {
-                    setAssigneeFilter(e.target.value);
-                    setCurrentIndex(0);
-                  }}
-                  className="bg-transparent border-none text-[8px] md:text-[10px] uppercase tracking-widest text-[#f0b100] appearance-none text-right cursor-pointer hover:text-[#f0b100]/80 focus:outline-none p-0 focus:ring-0 font-mono mb-[1px] md:mb-0.5 max-w-[80px] md:max-w-none text-ellipsis"
-                  title={t.filter_by}
-               >
-                  <option value="" className="bg-[#0F0F0F]">{t.filter_all}</option>
-                  {uniqueAssignees.map(a => (
-                    <option key={a} value={a} className="bg-[#0F0F0F]">{a}</option>
-                  ))}
-               </select>
-              <span className="text-sm md:text-xl font-mono leading-none text-[#f0b100] whitespace-nowrap">
-                {completedCount} <span className="text-[#f0b100]/50">/</span> {filteredFilms.length}
-              </span>
+            <div className="flex items-center gap-1 md:gap-3 border border-[#f0b100]/20 rounded-md p-1 md:p-1.5 bg-[#f0b100]/5 shrink-0">
+               <div className="relative flex items-center group">
+                 <User className="w-3 h-3 md:w-3.5 md:h-3.5 text-[#f0b100] ml-1 md:ml-1.5 opacity-70 group-hover:opacity-100 transition-opacity pointer-events-none shrink-0" />
+                 <select 
+                    value={assigneeFilter}
+                    onChange={(e) => {
+                      setAssigneeFilter(e.target.value);
+                      setCurrentIndex(0);
+                    }}
+                    className="bg-transparent border-none text-[8px] md:text-[10px] uppercase tracking-widest text-[#f0b100] appearance-none cursor-pointer hover:text-[#f0b100]/80 focus:outline-none pl-1 pr-4 py-0.5 font-mono max-w-[60px] md:max-w-[120px] text-ellipsis"
+                    title={t.filter_by}
+                 >
+                    <option value="" className="bg-[#0F0F0F]">{t.filter_all}</option>
+                    {uniqueAssignees.map(a => (
+                      <option key={a} value={a} className="bg-[#0F0F0F]">{a}</option>
+                    ))}
+                 </select>
+                 <ChevronDown className="w-3 h-3 text-[#f0b100]/50 absolute right-0 pointer-events-none" />
+               </div>
+
+               <div className="h-3 md:h-4 w-px bg-[#f0b100]/30 shrink-0"></div>
+
+               <div className="flex items-baseline gap-0.5 md:gap-1 pl-0.5 pr-1 md:pr-2 shrink-0">
+                 <span className="text-[10px] md:text-sm font-mono font-bold text-[#f0b100] leading-none">
+                   {completedCount}<span className="text-[#f0b100]/50 text-[8px] md:text-[10px]">/{filteredFilms.length}</span>
+                 </span>
+               </div>
             </div>
             
-            <div className="flex items-center gap-1 shrink-0">
+            {/* Desktop Actions */}
+            <div className="hidden lg:flex items-center gap-2 shrink-0">
               <button 
                 onClick={() => setLang(lang === 'en' ? 'es' : 'en')}
                 className="p-1.5 md:p-2 border border-white/20 text-white/60 hover:text-white hover:border-white/50 transition-colors flex items-center justify-center rounded-sm"
@@ -584,49 +649,121 @@ export default function App() {
               </label>
             </div>
 
-            <div className="flex items-center shrink-0">
+            {/* Desktop Export Actions */}
+            <div className="hidden lg:flex items-center gap-2 shrink-0">
+              <button 
+                onClick={handleManualSave}
+                className={cn(
+                  "flex items-center justify-center border rounded-sm text-white p-1.5 md:p-2 lg:px-4 lg:py-2 text-[10px] lg:text-xs uppercase tracking-widest font-bold transition-all duration-300",
+                  showSavedFeedback ? "border-emerald-500 bg-emerald-500/20 text-emerald-400" : "border-white/20 hover:bg-white/10"
+                )}
+                title={t.save_cache}
+              >
+                <span className="flex items-center">
+                  {showSavedFeedback ? <Check className="w-3 h-3 md:w-4 md:h-4 lg:mr-2" /> : <Save className="w-3 h-3 md:w-4 md:h-4 lg:mr-2" />}
+                  <span className="hidden lg:inline">{showSavedFeedback ? t.saved : t.save_cache}</span>
+                </span>
+              </button>
               <button 
                 onClick={exportDeliverables}
                 disabled={reportLoading}
-                className="hidden sm:flex border border-white/20 text-white px-4 py-2 text-[10px] lg:text-xs uppercase tracking-widest font-bold hover:bg-white/10 transition-colors disabled:opacity-50"
+                className="flex items-center justify-center border border-white/20 rounded-sm text-white p-1.5 md:p-2 lg:px-4 lg:py-2 text-[10px] lg:text-xs uppercase tracking-widest font-bold hover:bg-white/10 transition-colors disabled:opacity-50"
+                title={t.export_report}
               >
                 {reportLoading ? (
                   <span className="animate-pulse">...</span>
                 ) : (
-                   <span className="flex items-center gap-2"><FileText className="w-3 h-3"/> {t.export_report}</span>
+                   <span className="flex items-center">
+                     <Archive className="w-3 h-3 md:w-4 md:h-4 lg:mr-2" />
+                     <span className="hidden lg:inline">{t.export_report}</span>
+                   </span>
                 )}
               </button>
               <button 
                 onClick={exportCSV}
                 title={t.sync}
-                className="bg-white text-black p-1.5 md:px-4 lg:px-6 md:py-2 text-[10px] lg:text-xs uppercase tracking-widest font-bold hover:bg-zinc-200 transition-colors shrink-0 flex items-center justify-center rounded-sm md:rounded-none"
+                className="p-1.5 md:p-2 border border-white/20 text-white/60 hover:text-white hover:border-white/50 transition-colors flex items-center justify-center rounded-sm shrink-0"
               >
-                <Download className="w-3 h-3 md:hidden" />
-                <span className="hidden md:inline">{t.sync}</span>
+                <Download className="w-3 h-3 md:w-4 md:h-4" />
               </button>
               
               {!chatSidebarOpen && (
                  <button 
                    onClick={() => setChatSidebarOpen(true)}
-                   className="hidden md:flex ml-2 md:ml-4 text-white/40 hover:text-white transition-colors shrink-0 items-center justify-center"
+                   className="hidden lg:flex ml-2 lg:ml-4 text-white/40 hover:text-white transition-colors shrink-0 items-center justify-center"
                    title="Open AI Chat"
                  >
                    <ChevronLeft className="w-5 h-5" />
                  </button>
               )}
             </div>
+
+            {/* Mobile Actions Menu */}
+            <div className="lg:hidden relative shrink-0">
+              <button 
+                onClick={() => setActionMenuOpen(!actionMenuOpen)}
+                className="p-1.5 md:p-2 border border-white/20 text-white/60 hover:text-white hover:border-white/50 transition-colors flex items-center justify-center rounded-sm"
+              >
+                <MoreHorizontal className="w-3 h-3 md:w-4 md:h-4" />
+              </button>
+              
+              {actionMenuOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setActionMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-[#1f1f1f] border border-white/10 rounded-sm shadow-xl z-50 flex flex-col overflow-hidden">
+                    <button 
+                      onClick={() => { setLang(lang === 'en' ? 'es' : 'en'); setActionMenuOpen(false); }}
+                      className="px-4 py-3 text-[10px] text-white/70 hover:bg-white/5 hover:text-white flex items-center gap-3 transition-colors text-left font-mono uppercase tracking-widest w-full"
+                    >
+                      <Globe className="w-3.5 h-3.5" /> Toggle Lang
+                    </button>
+                    <button 
+                      onClick={() => { handleManualSave(); setActionMenuOpen(false); }}
+                      className={cn(
+                        "px-4 py-3 text-[10px] flex items-center gap-3 transition-colors text-left font-mono uppercase tracking-widest w-full border-b border-white/5",
+                        showSavedFeedback ? "text-emerald-400 bg-emerald-500/10" : "text-white/70 hover:bg-white/5 hover:text-white"
+                      )}
+                    >
+                      {showSavedFeedback ? <Check className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />} {showSavedFeedback ? t.saved : t.save_cache}
+                    </button>
+                    <label 
+                      className="px-4 py-3 text-[10px] text-white/70 hover:bg-white/5 hover:text-white flex items-center gap-3 transition-colors text-left cursor-pointer font-mono uppercase tracking-widest w-full"
+                    >
+                      <Upload className="w-3.5 h-3.5" /> {t.upload_csv}
+                      <input type="file" accept=".csv" className="hidden" onChange={(e) => { handleUploadCSV(e); setActionMenuOpen(false); }} />
+                    </label>
+                    <button 
+                      onClick={() => { exportDeliverables(); setActionMenuOpen(false); }}
+                      disabled={reportLoading}
+                      className="px-4 py-3 text-[10px] text-white/70 hover:bg-white/5 hover:text-white flex items-center gap-3 transition-colors text-left border-y border-white/5 font-mono uppercase tracking-widest w-full"
+                    >
+                      <Archive className="w-3.5 h-3.5" /> {t.export_report}
+                    </button>
+                    <button 
+                      onClick={() => { exportCSV(); setActionMenuOpen(false); }}
+                      className="px-4 py-3 text-[10px] text-white/70 hover:bg-white/5 hover:text-white flex items-center gap-3 transition-colors text-left font-mono uppercase tracking-widest w-full"
+                    >
+                      <Download className="w-3.5 h-3.5" /> {t.sync}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </header>
 
         {/* Main Workspace */}
-        <main className="flex-1 flex flex-col md:flex-row overflow-hidden bg-[#0F0F0F] relative">
+        <main className="flex-1 flex flex-col lg:flex-row overflow-hidden bg-[#0F0F0F] relative">
           
           {/* Left Pane: Video & Metadata */}
           <section className={cn(
-            "w-full flex flex-col border-b md:border-b-0 md:border-r border-white/10 shrink-0 md:shrink md:flex-1 min-h-0",
+            "w-full flex flex-col border-b lg:border-b-0 lg:border-r border-white/10 shrink-0 lg:shrink lg:flex-1 min-h-0",
             mobileTab === 'metadata' ? "flex-1 overflow-hidden" : "shrink-0"
           )}>
-            <div className="p-4 md:p-10 shrink-0 border-b border-white/5 md:border-none flex justify-center">
+            <div className="p-4 md:p-10 shrink-0 border-b border-white/5 lg:border-none flex justify-center">
               <div 
                 className="relative aspect-video bg-zinc-900 border border-white/5 shadow-2xl flex items-center justify-center group mb-0 md:mb-8 w-full mx-auto"
                 style={{ maxHeight: '40vh', maxWidth: 'calc(40vh * 16 / 9)' }}
@@ -648,40 +785,40 @@ export default function App() {
             </div>
 
             {/* Mobile Tab Bar */}
-            <div className="md:hidden flex border-b border-white/10 shrink-0 bg-black">
+            <div className="lg:hidden flex border-b border-white/10 shrink-0 bg-black">
                <button 
                   onClick={() => setMobileTab('metadata')}
                   className={cn(
-                    "flex-1 py-3 text-xs uppercase tracking-widest transition-colors flex items-center justify-center gap-2", 
+                    "flex-1 py-1.5 text-[10px] md:text-xs uppercase tracking-widest transition-colors flex items-center justify-center gap-2", 
                     mobileTab === 'metadata' ? "text-white border-b-2 border-white bg-white/5 font-bold" : "text-white/40 font-medium"
                   )}
                >
-                 <FileText className="w-4 h-4" /> Form
+                 <FileText className="w-3.5 h-3.5 md:w-4 md:h-4" /> Form
                </button>
                <button 
                   onClick={() => setMobileTab('chat')}
                   className={cn(
-                    "flex-1 py-3 text-xs uppercase tracking-widest transition-colors flex items-center justify-center gap-2", 
+                    "flex-1 py-1.5 text-[10px] md:text-xs uppercase tracking-widest transition-colors flex items-center justify-center gap-2", 
                     mobileTab === 'chat' ? "text-emerald-400 border-b-2 border-emerald-500 bg-emerald-500/10 font-bold" : "text-emerald-500/50 font-medium"
                   )}
                >
-                 <MessageSquare className="w-4 h-4" /> AI Chat
+                 <MessageSquare className="w-3.5 h-3.5 md:w-4 md:h-4" /> AI Chat
                </button>
             </div>
 
             <div className={cn(
-              "flex-1 overflow-y-auto p-6 md:p-10 pt-4 md:pt-0 pb-10",
-              mobileTab === 'chat' && "hidden md:block" // Hide metadata on mobile if chat is active
+              "flex-1 overflow-y-auto px-6 md:px-10 pt-[16px] pb-[40px]",
+              mobileTab === 'chat' && "hidden lg:block" // Hide metadata on mobile if chat is active
             )}>
-              <div className="flex items-start justify-between mb-8">
+              <div className="flex items-start justify-between mb-8 pl-0">
 
                  <div>
-                   <label className="text-[10px] uppercase tracking-widest text-white/30 block mb-2 font-mono">
+                   <label className="text-[9px] uppercase tracking-widest text-white/30 block mb-2 font-mono">
                      {t.active_entry} {currentIndex + 1}/{filteredFilms.length} // {currentFilm.date || t.not_available}
                    </label>
-                   <h2 className="text-3xl lg:text-4xl font-serif leading-tight mb-2">{currentFilm.title}</h2>
-                   <div className="flex gap-4 text-[10px] uppercase tracking-widest font-mono text-white/40">
-                     <span>{t.author}: <span className="text-white/60">{currentFilm.author || t.not_available}</span></span>
+                   <h2 className="text-2xl font-serif leading-tight mb-3">{currentFilm.title}</h2>
+                   <div className="flex gap-4 text-[9px] uppercase tracking-widest font-mono text-white/40">
+                     <span className="inline-block w-[120px]">{t.author}: <span className="text-white/60">{currentFilm.author || t.not_available}</span></span>
                      <span>{t.place}: <span className="text-white/60">{currentFilm.place || t.not_available}</span></span>
                    </div>
                  </div>
@@ -710,6 +847,7 @@ export default function App() {
                   approved={currentFilm.description_approved === 'true'}
                   placeholder={placeholders[`description_${lang}`] || placeholders['description'] || t.waiting}
                   strings={t}
+                  minWords={20}
                   onChange={(val) => handleUpdateCurrentFilm({ description: val })}
                   onToggleApprove={() => handleUpdateCurrentFilm({ description_approved: currentFilm.description_approved === 'true' ? 'false' : 'true' })}
                   onMention={() => handleMention(t.description)}
@@ -720,6 +858,7 @@ export default function App() {
                   approved={currentFilm.historic_context_approved === 'true'}
                   placeholder={placeholders[`historic_context_${lang}`] || placeholders['historic_context'] || t.waiting}
                   strings={t}
+                  minWords={20}
                   onChange={(val) => handleUpdateCurrentFilm({ historic_context: val })}
                   onToggleApprove={() => handleUpdateCurrentFilm({ historic_context_approved: currentFilm.historic_context_approved === 'true' ? 'false' : 'true' })}
                   onMention={() => handleMention(t.historic)}
@@ -730,6 +869,7 @@ export default function App() {
                   approved={currentFilm.aesthetic_critical_commentary_approved === 'true'}
                   placeholder={placeholders[`aesthetic_critical_commentary_${lang}`] || placeholders['aesthetic_critical_commentary'] || t.waiting}
                   strings={t}
+                  minWords={20}
                   onChange={(val) => handleUpdateCurrentFilm({ aesthetic_critical_commentary: val })}
                   onToggleApprove={() => handleUpdateCurrentFilm({ aesthetic_critical_commentary_approved: currentFilm.aesthetic_critical_commentary_approved === 'true' ? 'false' : 'true' })}
                   onMention={() => handleMention(t.aesthetic)}
@@ -770,8 +910,9 @@ export default function App() {
                       </button>
                       <button 
                         onClick={() => handleUpdateCurrentFilm({ tags_approved: currentFilm.tags_approved === 'true' ? 'false' : 'true' })}
-                        className={cn("ml-3 px-2 py-0.5 rounded-sm transition-colors border hidden md:inline-block text-[10px] uppercase tracking-widest font-mono", currentFilm.tags_approved === 'true' ? "border-emerald-500 bg-emerald-500/10 text-emerald-500" : "border-orange-500/50 text-orange-400 hover:text-orange-300 hover:border-orange-500 hover:bg-orange-500/10")}
+                        className={cn("ml-3 px-2 py-0.5 rounded-sm transition-colors border hidden md:flex items-center gap-1 text-[10px] uppercase tracking-widest font-mono", currentFilm.tags_approved === 'true' ? "border-emerald-500 bg-emerald-500/10 text-emerald-500" : "border-white/20 text-white/50 hover:text-white hover:border-white/40 hover:bg-white/5")}
                       >
+                        <Check className="w-3 h-3" />
                         {currentFilm.tags_approved === 'true' ? t.approved : t.approve_optional}
                       </button>
                     </span>
@@ -785,8 +926,9 @@ export default function App() {
                   </label>
                   <button 
                     onClick={() => handleUpdateCurrentFilm({ tags_approved: currentFilm.tags_approved === 'true' ? 'false' : 'true' })}
-                    className={cn("w-full md:hidden mb-2 text-left px-3 py-2 rounded-sm transition-colors border text-[10px] uppercase tracking-widest font-mono", currentFilm.tags_approved === 'true' ? "border-emerald-500 bg-emerald-500/10 text-emerald-500" : "border-orange-500/50 text-orange-400 hover:text-orange-300 hover:border-orange-500 hover:bg-orange-500/10")}
+                    className={cn("w-full md:hidden mb-2 text-left px-3 py-2 rounded-sm transition-colors border flex items-center gap-2 text-[10px] uppercase tracking-widest font-mono", currentFilm.tags_approved === 'true' ? "border-emerald-500 bg-emerald-500/10 text-emerald-500" : "border-white/20 text-white/50 hover:text-white hover:border-white/40 hover:bg-white/5")}
                   >
+                    <Check className="w-4 h-4" />
                     {currentFilm.tags_approved === 'true' ? t.approved : t.approve_optional}
                   </button>
                   <input 
@@ -813,7 +955,7 @@ export default function App() {
 
           {/* Resizer Handle (Desktop only) */}
           <div 
-            className={cn("hidden md:flex w-2 shrink-0 transition-colors z-20 group relative items-center justify-center", chatSidebarOpen ? "bg-black/20 hover:bg-[#1f1f1f] cursor-col-resize" : "pointer-events-none")}
+            className={cn("hidden lg:flex w-2 shrink-0 transition-colors z-20 group relative items-center justify-center", chatSidebarOpen ? "bg-black/20 hover:bg-[#1f1f1f] cursor-col-resize" : "pointer-events-none")}
             onMouseDown={(e) => {
               if (chatSidebarOpen && e.button === 0) {
                 isDraggingChatRef.current = true;
@@ -837,25 +979,25 @@ export default function App() {
             className={cn(
                "bg-[#121212] flex flex-col overflow-hidden min-h-0",
                !isDraggingChat && "transition-all duration-300",
-               mobileTab === 'chat' ? "w-full flex-1 border-none" : "hidden md:flex md:h-full md:shrink-0",
-               chatSidebarOpen ? "md:border-l border-white/5" : "md:w-0 md:border-l-0"
+               mobileTab === 'chat' ? "w-full flex-1 border-none" : "hidden lg:flex lg:h-full lg:shrink-0",
+               chatSidebarOpen ? "lg:border-l border-white/5" : "lg:w-0 lg:border-l-0"
             )}
-            style={{ width: window.innerWidth >= 768 ? (chatSidebarOpen ? chatWidth : 0) : undefined }}
+            style={{ width: window.innerWidth >= 1024 ? (chatSidebarOpen ? chatWidth : 0) : undefined }}
           >
-            <div className={cn("p-4 md:p-6 border-b border-white/5 flex items-center justify-between shadow-2xl z-10 shrink-0", !chatSidebarOpen && "opacity-0")}>
+            <div className={cn("p-2 lg:p-6 border-b border-white/5 flex items-center justify-between shadow-2xl z-10 shrink-0", !chatSidebarOpen && "opacity-0")}>
               <div className="flex items-center gap-3 min-w-max">
                 <MessageSquare className="w-4 h-4 text-emerald-500/70" />
                 <span className="text-[10px] uppercase tracking-widest text-emerald-500/70 font-bold whitespace-nowrap">{t.ai_assistant}</span>
               </div>
               <button 
-                className="hidden md:block text-white/40 hover:text-white transition-colors shrink-0"
+                className="hidden lg:block text-white/40 hover:text-white transition-colors shrink-0"
                 onClick={() => setChatSidebarOpen(false)}
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="flex-1 p-6 space-y-8 overflow-y-auto">
+            <div className="flex-1 p-4 md:p-6 space-y-6 md:space-y-8 overflow-y-auto">
               {messages.map((m) => {
                 const isUser = m.role === 'user';
                 return (
@@ -864,7 +1006,7 @@ export default function App() {
                       {isUser ? t.annotator : t.ai_assistant}
                     </span>
                     <div className={cn(
-                      "p-4 text-sm leading-relaxed max-w-[90%]",
+                      "p-3 md:p-4 text-sm leading-relaxed max-w-[90%]",
                       isUser 
                         ? "bg-white text-black rounded-sm shadow-sm" 
                         : "bg-zinc-800/50 border-l-2 border-white rounded-sm text-white"
@@ -877,7 +1019,7 @@ export default function App() {
               {loading && (
                 <div className="flex flex-col space-y-2 items-start">
                     <span className="text-[9px] uppercase tracking-widest text-white/20 font-bold">{t.ai_assistant}</span>
-                    <div className="bg-zinc-800/50 border-l-2 border-white p-4 rounded-sm flex items-center gap-2">
+                    <div className="bg-zinc-800/50 border-l-2 border-white p-3 md:p-4 rounded-sm flex items-center gap-2">
                       <span className="w-1.5 h-1.5 bg-white/60 animate-bounce" style={{ animationDelay: '0ms' }} />
                       <span className="w-1.5 h-1.5 bg-white/60 animate-bounce" style={{ animationDelay: '150ms' }} />
                       <span className="w-1.5 h-1.5 bg-white/60 animate-bounce" style={{ animationDelay: '300ms' }} />
@@ -888,7 +1030,7 @@ export default function App() {
             </div>
 
             {/* Chat Input */}
-            <div className="p-6 lg:p-8 bg-black/40 border-t border-white/5 shrink-0">
+            <div className="p-4 md:p-6 bg-black/40 border-t border-white/5 shrink-0">
               <form 
                 onSubmit={(e) => { e.preventDefault(); handleSend(); }}
                 className="relative flex items-center"
@@ -899,37 +1041,15 @@ export default function App() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder={t.type_observation}
-                  className="w-full bg-transparent border-b border-white/20 py-4 pr-12 text-sm focus:outline-none focus:border-white transition-colors placeholder:text-white/20"
+                  className="w-full bg-transparent border-b border-white/20 py-3 pr-10 text-sm md:text-base focus:outline-none focus:border-white transition-colors placeholder:text-white/20"
                 />
                 <button type="submit" disabled={!input.trim() || loading} className="absolute right-0 p-2 text-white/60 hover:text-white disabled:opacity-30 transition-colors">
-                  <Send className="w-5 h-5" />
+                  <Send className="w-4 h-4 md:w-5 md:h-5" />
                 </button>
               </form>
-              <div className="mt-4 flex justify-between items-center">
-                <span className="text-[9px] text-white/20 font-mono hidden sm:inline-block">{t.connected}</span>
-                <div className="flex space-x-4 ml-auto sm:ml-0">
-                  <button 
-                    type="button"
-                    onClick={() => {
-                        if(currentIndex < filteredFilms.length - 1) {
-                            setCurrentIndex(currentIndex + 1);
-                        }
-                    }}
-                    className="text-[10px] uppercase tracking-widest text-white/40 hover:text-white transition-colors"
-                  >
-                    {t.skip}
-                  </button>
-                </div>
-              </div>
             </div>
           </section>
         </main>
-        
-        {/* Footer */}
-        <footer className="px-6 lg:px-10 py-3 bg-black text-[9px] uppercase tracking-[0.4em] text-white/20 flex justify-between border-t border-white/5 z-20 shrink-0">
-          <span className="truncate mr-4">Annotation Module v2.4 // Shared Interface</span>
-          <span className="flex-shrink-0">Session: #88219-X</span>
-        </footer>
       </div>
     </div>
   );
@@ -942,6 +1062,7 @@ function MetadataField({
   placeholder,
   strings,
   optional,
+  minWords,
   onChange,
   onToggleApprove,
   onMention
@@ -952,17 +1073,26 @@ function MetadataField({
   placeholder: string,
   strings: any,
   optional?: boolean,
+  minWords?: number,
   onChange: (val: string) => void,
   onToggleApprove: () => void,
   onMention?: () => void
 }) {
-  const isMissing = content.trim().length === 0;
+  const hasText = content.trim().length > 0;
+  const wordCount = hasText ? content.trim().split(/\s+/).length : 0;
+  const requirementMet = optional ? true : (minWords ? wordCount >= minWords : hasText);
+  const isMissing = !hasText;
   
   return (
     <div className="group">
       <label className="text-[10px] uppercase tracking-widest text-white/30 block font-mono mb-2 flex justify-between items-end">
         <span className="flex items-center">
           {title}
+          {minWords && !optional && (
+            <span className={cn("ml-2 text-[9px]", wordCount >= minWords ? "text-emerald-500/50" : "text-amber-500/50")}>
+              ({wordCount}/{minWords} words)
+            </span>
+          )}
           {onMention && (
              <button 
                 onClick={onMention}
@@ -972,17 +1102,20 @@ function MetadataField({
                 <AtSign className="w-3 h-3" />
              </button>
           )}
-          {(!isMissing || optional) && (
+          {requirementMet && (
             <button 
               onClick={onToggleApprove}
-              className={cn("ml-3 px-2 py-0.5 rounded-sm transition-colors border hidden md:inline-block text-[10px] uppercase tracking-widest font-mono", approved ? "border-emerald-500 bg-emerald-500/10 text-emerald-500" : "border-[#f0b100]/50 text-[#f0b100] hover:text-[#f0b100]/80 hover:border-[#f0b100] hover:bg-[#f0b100]/10")}
+              className={cn("ml-3 px-2 py-0.5 rounded-sm transition-colors border hidden md:flex items-center gap-1 text-[10px] uppercase tracking-widest font-mono", approved ? "border-emerald-500 bg-emerald-500/10 text-emerald-500" : "border-white/20 text-white/50 hover:text-white hover:border-white/40 hover:bg-white/5")}
             >
+              <Check className="w-3 h-3" />
               {approved ? strings.approved : (optional ? strings.approve_optional : strings.approve)}
             </button>
           )}
         </span>
         {isMissing ? (
             <span className="text-amber-500/80">{strings.pending}</span>
+        ) : !requirementMet ? (
+            <span className="text-amber-500/80">{minWords ? `${strings.drafting} (< ${minWords} words)` : strings.drafting}</span>
         ) : approved ? (
             <span className="text-emerald-500/80">● {strings.approved}</span>
         ) : (
@@ -990,11 +1123,12 @@ function MetadataField({
         )}
       </label>
       
-      {(!isMissing || optional) && (
+      {requirementMet && (
          <button 
           onClick={onToggleApprove}
-          className={cn("w-full md:hidden mb-2 text-left px-3 py-2 rounded-sm transition-colors border text-[10px] uppercase tracking-widest font-mono", approved ? "border-emerald-500 bg-emerald-500/10 text-emerald-500" : "border-[#f0b100]/50 text-[#f0b100] hover:text-[#f0b100]/80 hover:border-[#f0b100] hover:bg-[#f0b100]/10")}
+          className={cn("w-full md:hidden mb-2 text-left px-3 py-2 rounded-sm transition-colors border flex items-center gap-2 text-[10px] uppercase tracking-widest font-mono", approved ? "border-emerald-500 bg-emerald-500/10 text-emerald-500" : "border-white/20 text-white/50 hover:text-white hover:border-white/40 hover:bg-white/5")}
         >
+          <Check className="w-4 h-4" />
           {approved ? strings.approved : (optional ? strings.approve_optional : strings.approve)}
         </button>
       )}
@@ -1007,6 +1141,7 @@ function MetadataField({
          className={cn(
           "w-full bg-transparent border-b pb-3 text-sm/relaxed resize-none focus:outline-none transition-colors",
           approved ? "border-white/30 text-emerald-100/90" : "border-white/30 focus:border-white/50 text-white/90",
+          !requirementMet && !isMissing && "border-amber-500/30 focus:border-amber-500/50",
           isMissing && "italic text-zinc-500"
          )}
       />
