@@ -1,10 +1,10 @@
 # Future Implementations
 
-This document serves as a reference for future developers, contributors, or maintainers of **CineFile_it** who are interested in extending the application's capabilities. 
+This document serves as a reference for future developers, contributors, or maintainers of **MediaFile_it** who are interested in extending the application's capabilities. 
 
 ## Proposed Feature: Voice Chat Interface
 
-One of the most promising future enhancements for CineFile_it is the integration of voice interactions, allowing the annotator to speak to the AI assistant and hear verbal responses. 
+One of the most promising future enhancements for MediaFile_it is the integration of voice interactions, allowing the annotator to speak to the AI assistant and hear verbal responses. 
 
 ### Why Voice? (Advantages)
 - **Hands-Free Workflow:** Annotators can keep their eyes on the film and dictate their thoughts simultaneously, streamlining the experience.
@@ -22,7 +22,7 @@ One of the most promising future enhancements for CineFile_it is the integration
 
 ## Proposed Feature: Advanced Spreadsheet Integration
 
-Currently, CineFile_it uses a public Google Sheet CSV export and strict column mapping. Future enhancements could make this much more flexible:
+Currently, MediaFile_it uses a public Google Sheet CSV export and strict column mapping. Future enhancements could make this much more flexible:
 
 - **Full Google Sheets API Integration:** Instead of downloading a CSV and manually dealing with file exports/uploads, the app could authenticate via the Google Sheets API. This would allow real-time read and write sync directly to the spreadsheet without needing to export files.
 - **Dynamic Column Mapping:** Rather than requiring exact English column names (`slug`, `title`, `vimeo_url`, etc.), the app could parse the CSV headers and provide a UI for the user to map their existing spreadsheet columns to the app's internal fields (e.g., "Map your 'Link' column to 'Vimeo URL'").

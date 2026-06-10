@@ -1,6 +1,6 @@
-# CineFile_it - Annotator User Manual & App Documentation
+# MediaFile_it - Annotator User Manual & App Documentation
 
-Welcome to **CineFile_it**, an AI-assisted film cataloging and annotation studio. This document serves as the primary manual for annotators using the app, and provides context to the AI Assistant so it can help answer user questions about app functionality.
+Welcome to **MediaFile_it**, an AI-assisted film cataloging and annotation studio. This document serves as the primary manual for annotators using the app, and provides context to the AI Assistant so it can help answer user questions about app functionality.
 
 ## 1. Starting a Session
 * **Identity Check**: When you first open the app, you will be prompted with **"Who are you?"** (or "Who is the annotator?").

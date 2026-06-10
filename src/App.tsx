@@ -603,7 +603,7 @@ export default function App() {
                   <Menu className="w-4 h-4 md:w-5 md:h-5" />
                 </button>
               )}
-              <span className="text-xs md:text-xl uppercase tracking-[0.2em] font-mono font-bold text-[#f0b100] whitespace-nowrap">CineFile_it</span>
+              <span className="text-xs md:text-xl uppercase tracking-[0.2em] font-mono font-bold text-[#f0b100] whitespace-nowrap">MediaFile_it</span>
             </div>
           </div>
           <div className="flex flex-nowrap items-center gap-2 md:gap-6 shrink-0 justify-end border-l border-white/10 pl-2 md:pl-0 md:border-none">

@@ -1,10 +1,10 @@
-# CineFile_it
+# MediaFile_it
 
-CineFile_it is an open-source, AI-assisted video annotation and cataloging studio. It simplifies the process of watching films and extracting rich, localized metadata directly into a structured CSV format. By conversing with an AI assistant that lives alongside the video, annotators can talk through their analysis and have the system automatically draft fields like Description, Historic Context, and Aesthetic Commentary.
+MediaFile_it is an open-source, AI-assisted video annotation and cataloging studio. It simplifies the process of watching films and extracting rich, localized metadata directly into a structured CSV format. By conversing with an AI assistant that lives alongside the video, annotators can talk through their analysis and have the system automatically draft fields like Description, Historic Context, and Aesthetic Commentary.
 
 **Background:** This tool was originally conceived and developed for the **Agente Fílmico** project as a bespoke annotation tool tailored to the needs of independent audiovisual archives. While its roots are in addressing these specific archival needs, the platform is designed to be easily expanded and adapted to other archives and collections. For more information on the origins of the project, visit [Third Eye Files - Agente Fílmico](https://thirdeyefiles.net/agente-filmico-at-eye/) and [Agente Fílmico (MAFI)](https://agente.mafi.tv/).
 
-**Platform Context:** CineFile_it was built primarily to run within the Google AI Studio environment, utilizing its rapid prototyping capabilities. However, it has been developed with a conscious awareness that it can be easily hosted, customized, and adapted to run on other platforms, servers, or local environments.
+**Platform Context:** MediaFile_it was built primarily to run within the Google AI Studio environment, utilizing its rapid prototyping capabilities. However, it has been developed with a conscious awareness that it can be easily hosted, customized, and adapted to run on other platforms, servers, or local environments.
 
 ## How it works
 

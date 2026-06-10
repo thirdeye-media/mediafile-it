@@ -1,5 +1,5 @@
 {
-  "name": "CineFile_it",
+  "name": "MediaFile_it",
   "description": "An AI chat interface that helps annotators fill out film metadata for a Google Sheet.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
