@@ -116,14 +116,13 @@ const TRANSLATIONS = {
   }
 };
 
-export default function App() {
+export default function App({ lang, setLang }: { lang: "en" | "es"; setLang: (l: "en" | "es") => void }) {
   const [films, setFilms] = useState<Film[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024);
-  const [lang, setLang] = useState<'en' | 'es'>('es');
   const [reportLoading, setReportLoading] = useState(false);
   const [showSavedFeedback, setShowSavedFeedback] = useState(false);
   const [assigneeFilter, setAssigneeFilter] = useState('');
