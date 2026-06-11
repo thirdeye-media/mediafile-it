@@ -117,27 +117,38 @@ export default function Landing({ onEnter, lang, setLang }: Props) {
         </div>
       </nav>
 
-      {/* ── Hero ── dark canvas, compact */}
+      {/* ── Hero ── dark canvas, two-column */}
       <section style={{ background: C.canvas, padding: "72px 24px 80px" }}>
-        <div style={{ maxWidth: 960, margin: "0 auto" }}>
-          <p style={{ ...mono, fontSize: 11, letterSpacing: "0.12em", color: C.mute, marginBottom: 20 }}>
-            {t.eyebrow}
-          </p>
-          <h1 style={{ fontSize: 48, fontWeight: 400, lineHeight: 1.1, letterSpacing: "-1.5px", color: C.canvasLight, margin: "0 0 20px", maxWidth: 520 }}>
-            {t.heading}
-          </h1>
-          <p style={{ fontSize: 17, lineHeight: 1.6, color: C.ash, maxWidth: 520, margin: "0 0 36px" }}>
-            {t.sub}
-          </p>
-          <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-            <button
-              onClick={onEnter}
-              style={{ display: "flex", alignItems: "center", gap: 8, background: C.canvasLight, color: C.ink, border: "none", fontFamily: "inherit", fontSize: 15, fontWeight: 500, padding: "10px 22px", borderRadius: 99, cursor: "pointer" }}
-            >
-              {t.cta}
-              <ArrowRight size={14} />
-            </button>
-            <span style={{ fontSize: 13, color: C.mute }}>{t.ctaNote}</span>
+        <div style={{ maxWidth: 960, margin: "0 auto", display: "flex", alignItems: "center", gap: 56, flexWrap: "wrap" }}>
+          {/* Text column */}
+          <div style={{ flex: "1 1 320px" }}>
+            <p style={{ ...mono, fontSize: 11, letterSpacing: "0.12em", color: C.mute, marginBottom: 20 }}>
+              {t.eyebrow}
+            </p>
+            <h1 style={{ fontSize: 48, fontWeight: 400, lineHeight: 1.1, letterSpacing: "-1.5px", color: C.canvasLight, margin: "0 0 20px" }}>
+              {t.heading}
+            </h1>
+            <p style={{ fontSize: 16, lineHeight: 1.7, color: C.ash, margin: "0 0 36px" }}>
+              {t.sub}
+            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+              <button
+                onClick={onEnter}
+                style={{ display: "flex", alignItems: "center", gap: 8, background: C.canvasLight, color: C.ink, border: "none", fontFamily: "inherit", fontSize: 15, fontWeight: 500, padding: "10px 22px", borderRadius: 99, cursor: "pointer" }}
+              >
+                {t.cta}
+                <ArrowRight size={14} />
+              </button>
+              <span style={{ fontSize: 13, color: C.mute }}>{t.ctaNote}</span>
+            </div>
+          </div>
+          {/* Image column */}
+          <div style={{ flex: "1 1 300px", borderRadius: 6, overflow: "hidden", border: `1px solid ${C.hairlineSoft}` }}>
+            <img
+              src="/hero-still.jpg"
+              alt="Film still — MediaFile_it annotation studio"
+              style={{ display: "block", width: "100%", height: "auto" }}
+            />
           </div>
         </div>
       </section>
