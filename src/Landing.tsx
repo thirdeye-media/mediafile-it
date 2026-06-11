@@ -159,7 +159,7 @@ export default function Landing({ onEnter, lang, setLang }: Props) {
           <p style={{ ...mono, fontSize: 11, letterSpacing: "0.12em", color: C.mute, marginBottom: 40 }}>
             {t.stepsEyebrow}
           </p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "1px", background: C.hairline }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "1px", background: C.hairline }}>
             {t.steps.map((s) => (
               <div key={s.n} style={{ background: C.canvasLight, padding: "28px 28px 32px" }}>
                 <p style={{ ...mono, fontSize: 11, color: C.mute, marginBottom: 12 }}>{s.n}</p>
